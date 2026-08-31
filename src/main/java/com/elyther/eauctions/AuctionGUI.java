@@ -20,8 +20,7 @@ public class AuctionGUI implements Listener {
     private final EAuctions plugin;
 
     private final String title =
-            ChatColor.DARK_PURPLE +
-                    "EAuctions";
+            ChatColor.DARK_PURPLE + "EAuctions";
 
     public AuctionGUI(EAuctions plugin) {
         this.plugin = plugin;
@@ -38,7 +37,7 @@ public class AuctionGUI implements Listener {
 
         List<Auction> auctions =
                 plugin.getAuctionManager()
-                        .search(search);
+                        .search(search == null ? "" : search);
 
         Inventory inventory =
                 Bukkit.createInventory(
@@ -47,7 +46,10 @@ public class AuctionGUI implements Listener {
                         title
                 );
 
-        // Auction items
+        // =====================================================
+        // AUCTION ITEMS
+        // =====================================================
+
         int slot = 0;
 
         for (Auction auction : auctions) {
@@ -76,9 +78,7 @@ public class AuctionGUI implements Listener {
                 lore.add(
                         color(
                                 "&7Seller: &f" +
-                                        getSellerName(
-                                                auction
-                                        )
+                                        getSellerName(auction)
                         )
                 );
 
@@ -94,9 +94,7 @@ public class AuctionGUI implements Listener {
                 lore.add("");
 
                 lore.add(
-                        color(
-                                "&eClick to buy!"
-                        )
+                        color("&eClick to buy!")
                 );
 
                 meta.setLore(lore);
@@ -112,7 +110,10 @@ public class AuctionGUI implements Listener {
             slot++;
         }
 
-        // Bottom bar
+        // =====================================================
+        // BOTTOM BAR
+        // =====================================================
+
         ItemStack filler =
                 createItem(
                         Material.GRAY_STAINED_GLASS_PANE,
@@ -123,22 +124,26 @@ public class AuctionGUI implements Listener {
             inventory.setItem(i, filler);
         }
 
-        // Search info
+        // =====================================================
+        // SEARCH BUTTON
+        // =====================================================
+
+        String currentSearch =
+                search == null || search.isBlank()
+                        ? "All items"
+                        : search;
+
         ItemStack searchItem =
                 createItem(
                         Material.COMPASS,
-                        "&bSearch",
-                        "&7Current search:",
-                        "&f" +
-                                (
-                                        search == null ||
-                                                search.isEmpty()
-                                                ? "All items"
-                                                : search
-                                ),
+                        "&b&lSearch",
                         "",
-                        "&7Use:",
-                        "&f/ah <item>"
+                        "&7Current search:",
+                        "&f" + currentSearch,
+                        "",
+                        "&eClick to search!",
+                        "",
+                        "&7You can type an item name"
                 );
 
         inventory.setItem(
@@ -146,24 +151,16 @@ public class AuctionGUI implements Listener {
                 searchItem
         );
 
+        // =====================================================
+        // OPEN
+        // =====================================================
+
         player.openInventory(inventory);
     }
 
-    private String getSellerName(
-            Auction auction
-    ) {
-
-        OfflinePlayer seller =
-                Bukkit.getOfflinePlayer(
-                        auction.getSeller()
-                );
-
-        if (seller.getName() == null) {
-            return "Unknown";
-        }
-
-        return seller.getName();
-    }
+    // =========================================================
+    // CLICK
+    // =========================================================
 
     @EventHandler
     public void onClick(
@@ -172,12 +169,14 @@ public class AuctionGUI implements Listener {
 
         if (!(event.getWhoClicked()
                 instanceof Player player)) {
+
             return;
         }
 
         if (!event.getView()
                 .getTitle()
                 .equals(title)) {
+
             return;
         }
 
@@ -186,14 +185,56 @@ public class AuctionGUI implements Listener {
         int slot =
                 event.getRawSlot();
 
+        // Outside inventory
         if (slot < 0 ||
-                slot >= 45) {
+                slot >= event.getView()
+                        .getTopInventory()
+                        .getSize()) {
+
             return;
         }
 
+        // =====================================================
+        // SEARCH
+        // =====================================================
+
+        if (slot == 49) {
+
+            player.closeInventory();
+
+            AuctionSearch search =
+                    plugin.getAuctionSearch();
+
+            if (search != null) {
+                search.open(player);
+            }
+
+            return;
+        }
+
+        // Bottom bar
+        if (slot >= 45) {
+            return;
+        }
+
+        // =====================================================
+        // IMPORTANT:
+        // Use SEARCHED list, not all auctions.
+        // =====================================================
+
+        /*
+         * We cannot know the search from the inventory title,
+         * therefore AuctionSearch stores the player's current
+         * search.
+         */
+
+        String searchText =
+                plugin.getAuctionSearch()
+                        .getCurrentSearch(player);
+
         List<Auction> auctions =
                 plugin.getAuctionManager()
-                        .getAuctions();
+                        .search(searchText);
 
         if (slot >= auctions.size()) {
             return;
@@ -204,6 +245,10 @@ public class AuctionGUI implements Listener {
 
         buy(player, auction);
     }
+
+    // =========================================================
+    // BUY
+    // =========================================================
 
     private void buy(
             Player buyer,
@@ -223,6 +268,10 @@ public class AuctionGUI implements Listener {
                             color(
                                     "&cThis auction no longer exists."
                             )
+            );
+
+            open(
+                    buyer
             );
 
             return;
@@ -280,7 +329,10 @@ public class AuctionGUI implements Listener {
                         current.getSeller()
                 );
 
-        // Withdraw buyer money
+        // =====================================================
+        // WITHDRAW
+        // =====================================================
+
         if (!plugin.getEconomy()
                 .withdrawPlayer(
                         buyer,
@@ -298,18 +350,28 @@ public class AuctionGUI implements Listener {
             return;
         }
 
-        // Give seller money
+        // =====================================================
+        // DEPOSIT
+        // =====================================================
+
         plugin.getEconomy()
                 .depositPlayer(
                         seller,
                         price
                 );
 
-        // Give item
+        // =====================================================
+        // GIVE ITEM
+        // =====================================================
+
         buyer.getInventory()
                 .addItem(
                         current.getItem()
                 );
+
+        // =====================================================
+        // REMOVE AUCTION
+        // =====================================================
 
         plugin.getAuctionManager()
                 .removeAuction(
@@ -331,6 +393,10 @@ public class AuctionGUI implements Listener {
                         )
         );
 
+        // =====================================================
+        // SELLER MESSAGE
+        // =====================================================
+
         if (seller.isOnline()) {
 
             Player sellerPlayer =
@@ -351,14 +417,24 @@ public class AuctionGUI implements Listener {
             }
         }
 
-        buyer.closeInventory();
+        // =====================================================
+        // REOPEN
+        // =====================================================
 
         Bukkit.getScheduler()
                 .runTask(
                         plugin,
-                        () -> open(buyer)
+                        () -> openSearch(
+                                buyer,
+                                plugin.getAuctionSearch()
+                                        .getCurrentSearch(buyer)
+                        )
                 );
     }
+
+    // =========================================================
+    // INVENTORY SPACE
+    // =========================================================
 
     private boolean hasInventorySpace(
             Player player,
@@ -386,6 +462,30 @@ public class AuctionGUI implements Listener {
         return false;
     }
 
+    // =========================================================
+    // SELLER
+    // =========================================================
+
+    private String getSellerName(
+            Auction auction
+    ) {
+
+        OfflinePlayer seller =
+                Bukkit.getOfflinePlayer(
+                        auction.getSeller()
+                );
+
+        if (seller.getName() == null) {
+            return "Unknown";
+        }
+
+        return seller.getName();
+    }
+
+    // =========================================================
+    // CREATE ITEM
+    // =========================================================
+
     private ItemStack createItem(
             Material material,
             String name,
@@ -408,7 +508,9 @@ public class AuctionGUI implements Listener {
                     new ArrayList<>();
 
             for (String line : lore) {
-                list.add(color(line));
+                list.add(
+                        color(line)
+                );
             }
 
             meta.setLore(list);
@@ -418,6 +520,10 @@ public class AuctionGUI implements Listener {
 
         return item;
     }
+
+    // =========================================================
+    // PREFIX
+    // =========================================================
 
     private String prefix() {
 
@@ -430,7 +536,14 @@ public class AuctionGUI implements Listener {
         );
     }
 
-    private String color(String text) {
+    // =========================================================
+    // COLOR
+    // =========================================================
+
+    private String color(
+            String text
+    ) {
+
         return plugin.color(text);
     }
 }
