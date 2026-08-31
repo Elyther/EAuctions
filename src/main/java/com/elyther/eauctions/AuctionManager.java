@@ -35,7 +35,7 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // ADD AUCTION
+    // ADD
     // =========================================================
 
     public synchronized Auction addAuction(
@@ -81,7 +81,7 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // GET AUCTION
+    // GET
     // =========================================================
 
     public synchronized Auction getAuction(
@@ -98,10 +98,6 @@ public class AuctionManager {
         return null;
     }
 
-    // =========================================================
-    // ALL AUCTIONS
-    // =========================================================
-
     public synchronized List<Auction> getAuctions() {
 
         return new ArrayList<>(
@@ -117,24 +113,20 @@ public class AuctionManager {
             String search
     ) {
 
-        List<Auction> result =
-                new ArrayList<>();
-
         if (search == null ||
-                search.isBlank()) {
+                search.trim().isEmpty()) {
 
-            result.addAll(auctions);
-
-            return result;
+            return getAuctions();
         }
 
         String query =
-                search
-                        .trim()
+                search.trim()
                         .toLowerCase();
 
-        for (Auction auction :
-                auctions) {
+        List<Auction> result =
+                new ArrayList<>();
+
+        for (Auction auction : auctions) {
 
             String material =
                     auction.getItem()
@@ -144,8 +136,7 @@ public class AuctionManager {
 
             String displayName = "";
 
-            if (auction.getItem()
-                    .hasItemMeta()) {
+            if (auction.getItem().hasItemMeta()) {
 
                 if (auction.getItem()
                         .getItemMeta()
@@ -160,18 +151,12 @@ public class AuctionManager {
             }
 
             /*
-             * Starts with:
+             * STARTS WITH
              *
-             * dia
-             *
-             * matches:
-             *
-             * diamond
-             * diamond_sword
-             * diamond_block
-             * diamond_pickaxe
-             *
-             * Also accepts display names.
+             * Example:
+             * dia -> DIAMOND
+             * dia -> DIAMOND_BLOCK
+             * dia -> DIAMOND_SWORD
              */
 
             if (material.startsWith(query) ||
@@ -185,30 +170,79 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // SEARCH + SORT
+    // FILTER + SORT
     // =========================================================
 
-    public synchronized List<Auction> searchAndSort(
+    public synchronized List<Auction> getFiltered(
             String search,
+            UUID player,
+            boolean myAuctions,
             SortType sortType
     ) {
 
         List<Auction> result =
-                search(search);
+                new ArrayList<>();
 
-        sort(result, sortType);
+        String query =
+                search == null
+                        ? ""
+                        : search.trim()
+                        .toLowerCase();
 
-        return result;
-    }
+        for (Auction auction : auctions) {
 
-    // =========================================================
-    // SORT
-    // =========================================================
+            // ---------------------------------------------
+            // MY AUCTIONS
+            // ---------------------------------------------
 
-    public synchronized void sort(
-            List<Auction> list,
-            SortType sortType
-    ) {
+            if (myAuctions &&
+                    !auction.getSeller()
+                            .equals(player)) {
+
+                continue;
+            }
+
+            // ---------------------------------------------
+            // SEARCH
+            // ---------------------------------------------
+
+            if (!query.isEmpty()) {
+
+                String material =
+                        auction.getItem()
+                                .getType()
+                                .name()
+                                .toLowerCase();
+
+                String displayName = "";
+
+                if (auction.getItem().hasItemMeta()) {
+
+                    if (auction.getItem()
+                            .getItemMeta()
+                            .hasDisplayName()) {
+
+                        displayName =
+                                auction.getItem()
+                                        .getItemMeta()
+                                        .getDisplayName()
+                                        .toLowerCase();
+                    }
+                }
+
+                if (!material.startsWith(query) &&
+                        !displayName.startsWith(query)) {
+
+                    continue;
+                }
+            }
+
+            result.add(auction);
+        }
+
+        // =====================================================
+        // SORT
+        // =====================================================
 
         if (sortType == null) {
             sortType = SortType.NEWEST;
@@ -218,7 +252,7 @@ public class AuctionManager {
 
             case NEWEST:
 
-                list.sort(
+                result.sort(
                         Comparator.comparingInt(
                                 Auction::getId
                         ).reversed()
@@ -228,7 +262,7 @@ public class AuctionManager {
 
             case OLDEST:
 
-                list.sort(
+                result.sort(
                         Comparator.comparingInt(
                                 Auction::getId
                         )
@@ -236,9 +270,9 @@ public class AuctionManager {
 
                 break;
 
-            case CHEAPEST:
+            case LOWEST_PRICE:
 
-                list.sort(
+                result.sort(
                         Comparator.comparingDouble(
                                 Auction::getPrice
                         )
@@ -246,37 +280,15 @@ public class AuctionManager {
 
                 break;
 
-            case MOST_EXPENSIVE:
+            case HIGHEST_PRICE:
 
-                list.sort(
+                result.sort(
                         Comparator.comparingDouble(
                                 Auction::getPrice
                         ).reversed()
                 );
 
                 break;
-        }
-    }
-
-    // =========================================================
-    // PLAYER AUCTIONS
-    // =========================================================
-
-    public synchronized List<Auction> getPlayerAuctions(
-            UUID player
-    ) {
-
-        List<Auction> result =
-                new ArrayList<>();
-
-        for (Auction auction :
-                auctions) {
-
-            if (auction.getSeller()
-                    .equals(player)) {
-
-                result.add(auction);
-            }
         }
 
         return result;
@@ -288,8 +300,7 @@ public class AuctionManager {
 
     public synchronized void save() {
 
-        if (!plugin.getDataFolder()
-                .exists()) {
+        if (!plugin.getDataFolder().exists()) {
 
             plugin.getDataFolder()
                     .mkdirs();
@@ -305,8 +316,7 @@ public class AuctionManager {
 
         int index = 0;
 
-        for (Auction auction :
-                auctions) {
+        for (Auction auction : auctions) {
 
             String path =
                     "auctions." + index;
@@ -429,8 +439,7 @@ public class AuctionManager {
                 );
 
                 /*
-                 * Protect against duplicate IDs
-                 * after restart.
+                 * Prevent duplicate IDs after restart.
                  */
 
                 if (id >= nextId) {
