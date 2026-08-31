@@ -8,33 +8,65 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class EAuctions extends JavaPlugin {
 
     private Economy economy;
+    private AuctionManager auctionManager;
+    private AuctionGUI auctionGUI;
 
     @Override
     public void onEnable() {
 
+        // ==========================================
+        // CONFIG
+        // ==========================================
+
         saveDefaultConfig();
 
-        // Hook into Vault
+        // ==========================================
+        // VAULT
+        // ==========================================
+
         if (!setupEconomy()) {
-            getLogger().severe("Vault economy could not be found!");
-            getLogger().severe("Please install Vault and an economy plugin.");
-            getServer().getPluginManager().disablePlugin(this);
+
+            getLogger().severe("==============================");
+            getLogger().severe("Vault economy not found!");
+            getLogger().severe(
+                    "Install Vault and an economy plugin."
+            );
+            getLogger().severe("==============================");
+
+            getServer().getPluginManager()
+                    .disablePlugin(this);
+
             return;
         }
 
-        // Register command
-        if (getCommand("ah") != null) {
+        // ==========================================
+        // AUCTION MANAGER
+        // ==========================================
 
-            AuctionCommand command =
-                    new AuctionCommand(this);
+        auctionManager =
+                new AuctionManager(this);
 
-            getCommand("ah").setExecutor(command);
-            getCommand("ah").setTabCompleter(command);
+        // ==========================================
+        // GUI
+        // ==========================================
 
-        } else {
+        auctionGUI =
+                new AuctionGUI(this);
+
+        Bukkit.getPluginManager()
+                .registerEvents(
+                        auctionGUI,
+                        this
+                );
+
+        // ==========================================
+        // COMMAND
+        // ==========================================
+
+        if (getCommand("ah") == null) {
 
             getLogger().severe(
-                    "Command 'ah' was not found in plugin.yml!"
+                    "Command 'ah' is missing from plugin.yml!"
             );
 
             getServer().getPluginManager()
@@ -43,53 +75,75 @@ public class EAuctions extends JavaPlugin {
             return;
         }
 
-        // Register GUI
-        AuctionGUI gui =
-                new AuctionGUI(this);
+        AuctionCommand command =
+                new AuctionCommand(
+                        this,
+                        auctionGUI
+                );
 
-        Bukkit.getPluginManager()
-                .registerEvents(gui, this);
+        getCommand("ah")
+                .setExecutor(command);
+
+        getCommand("ah")
+                .setTabCompleter(command);
+
+        // ==========================================
+        // ENABLE MESSAGE
+        // ==========================================
 
         getLogger().info("==============================");
         getLogger().info("       EAuctions Enabled");
         getLogger().info("==============================");
-        getLogger().info("Vault: Connected");
-        getLogger().info("Economy: " + economy.getName());
-        getLogger().info("Made by Elyther");
+
+        getLogger().info(
+                "Vault: Connected"
+        );
+
+        getLogger().info(
+                "Economy: " +
+                        economy.getName()
+        );
+
+        getLogger().info(
+                "Commands: /ah"
+        );
+
+        getLogger().info(
+                "Made by Elyther"
+        );
     }
+
+    // ==========================================
+    // DISABLE
+    // ==========================================
 
     @Override
     public void onDisable() {
 
-        getLogger().info("EAuctions disabled.");
+        getLogger().info(
+                "EAuctions disabled."
+        );
     }
 
-    // =========================================================
-    // VAULT ECONOMY
-    // =========================================================
+    // ==========================================
+    // VAULT SETUP
+    // ==========================================
 
     private boolean setupEconomy() {
 
         if (Bukkit.getPluginManager()
                 .getPlugin("Vault") == null) {
 
-            getLogger().severe(
-                    "Vault is not installed!"
-            );
-
             return false;
         }
 
         RegisteredServiceProvider<Economy> provider =
                 Bukkit.getServicesManager()
-                        .getRegistration(Economy.class);
+                        .getRegistration(
+                                Economy.class
+                        );
 
         if (provider == null) {
-
-            getLogger().severe(
-                    "No Vault economy provider found!"
-            );
-
             return false;
         }
 
@@ -99,17 +153,33 @@ public class EAuctions extends JavaPlugin {
         return economy != null;
     }
 
-    // =========================================================
+    // ==========================================
     // GET ECONOMY
-    // =========================================================
+    // ==========================================
 
     public Economy getEconomy() {
         return economy;
     }
 
-    // =========================================================
+    // ==========================================
+    // GET AUCTION MANAGER
+    // ==========================================
+
+    public AuctionManager getAuctionManager() {
+        return auctionManager;
+    }
+
+    // ==========================================
+    // GET AUCTION GUI
+    // ==========================================
+
+    public AuctionGUI getAuctionGUI() {
+        return auctionGUI;
+    }
+
+    // ==========================================
     // FORMAT MONEY
-    // =========================================================
+    // ==========================================
 
     public String formatMoney(double amount) {
 
@@ -119,7 +189,6 @@ public class EAuctions extends JavaPlugin {
                     "%.1fb",
                     amount / 1_000_000_000
             );
-
         }
 
         if (amount >= 1_000_000) {
@@ -128,7 +197,6 @@ public class EAuctions extends JavaPlugin {
                     "%.1fm",
                     amount / 1_000_000
             );
-
         }
 
         if (amount >= 1_000) {
@@ -153,9 +221,9 @@ public class EAuctions extends JavaPlugin {
         );
     }
 
-    // =========================================================
+    // ==========================================
     // PARSE PRICE
-    // =========================================================
+    // ==========================================
 
     public double parsePrice(String input) {
 
@@ -175,6 +243,7 @@ public class EAuctions extends JavaPlugin {
 
             double multiplier = 1.0;
 
+            // 5k
             if (input.endsWith("k")) {
 
                 multiplier = 1_000.0;
@@ -184,8 +253,10 @@ public class EAuctions extends JavaPlugin {
                                 0,
                                 input.length() - 1
                         );
+            }
 
-            } else if (input.endsWith("m")) {
+            // 5m
+            else if (input.endsWith("m")) {
 
                 multiplier = 1_000_000.0;
 
@@ -194,8 +265,10 @@ public class EAuctions extends JavaPlugin {
                                 0,
                                 input.length() - 1
                         );
+            }
 
-            } else if (input.endsWith("b")) {
+            // 5b
+            else if (input.endsWith("b")) {
 
                 multiplier = 1_000_000_000.0;
 
@@ -213,8 +286,8 @@ public class EAuctions extends JavaPlugin {
                     number * multiplier;
 
             if (price <= 0 ||
-                    Double.isInfinite(price) ||
-                    Double.isNaN(price)) {
+                    Double.isNaN(price) ||
+                    Double.isInfinite(price)) {
 
                 return -1;
             }
