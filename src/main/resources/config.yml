@@ -1,16 +1,102 @@
+# ==========================================
+# EAuctions
+# Made by Elyther
+# ==========================================
+
 auction:
-  title: "&d&lEAuctions"
-  size: 54
+
+  # Money symbol shown in the GUI
   currency-symbol: "$"
-  duration-hours: 72
+
+  # Number of auctions shown per page
+  items-per-page: 45
+
+  # Allow players to buy their own auctions
+  allow-self-buy: false
+
+
+# ==========================================
+# GUI
+# ==========================================
+
+gui:
+
+  title: "&d&lEAuctions"
+
+  confirm-title: "&d&lConfirm Purchase"
+
+
+# ==========================================
+# MESSAGES
+# ==========================================
 
 messages:
+
   prefix: "&d&lEAuctions &8» "
+
+  reload: "&aConfiguration reloaded."
+
   no-permission: "&cYou don't have permission."
+
   invalid-price: "&cInvalid price."
-  invalid-item: "&cYou must hold an item."
-  not-enough-money: "&cYou don't have enough money."
-  cannot-buy-own-item: "&cYou cannot buy your own item."
+
+  invalid-item: "&cYou must hold an item in your hand."
+
   sold: "&aYour item has been listed for &f%price%&a."
-  bought: "&aYou bought the item for &f%price%&a."
-  reload: "&aEAuctions configuration reloaded."
+
+  not-enough-money: "&cYou don't have enough money."
+
+  purchase-success: "&aYou bought the item for &f%price%&a."
+
+  seller-sold: "&aYour item was sold for &f%price%&a."
+
+  auction-not-found: "&cThis auction no longer exists."
+
+  own-auction: "&cYou cannot buy your own item."
+
+  inventory-full: "&cYour inventory is full."
+
+  payment-failed: "&cPayment failed."
+
+  database-error: "&cA database error occurred."
+
+
+# ==========================================
+# DISPLAY
+# ==========================================
+
+display:
+
+  seller: "&7Seller: &f%seller%"
+
+  price: "&7Price: &a%price%"
+
+  buy: "&eClick to buy"
+
+  previous: "&ePrevious Page"
+
+  next: "&eNext Page"
+
+  close: "&cClose"
+
+  sell: "&aSell Item"
+
+
+# ==========================================
+# COLORS
+# ==========================================
+
+# Supports:
+#
+# &a &b &c &d &e &f
+# &l &n &o &m &k
+#
+# HEX:
+#
+# &#FF0000
+# &#00FF00
+# &#00FFFF
+#
+# Example:
+#
+# title: "&#A020F0&lEAuctions"
