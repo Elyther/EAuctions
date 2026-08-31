@@ -15,18 +15,25 @@ public class AuctionManager {
 
     private final EAuctions plugin;
 
-    private final List<Auction> auctions =
-            new ArrayList<>();
+    private final List<Auction> auctions = new ArrayList<>();
 
     private int nextId = 1;
 
     private final File file;
 
+    // =========================================================
+    // CONSTRUCTOR
+    // =========================================================
+
     public AuctionManager(EAuctions plugin) {
 
         this.plugin = plugin;
 
-        file = new File(
+        if (!plugin.getDataFolder().exists()) {
+            plugin.getDataFolder().mkdirs();
+        }
+
+        this.file = new File(
                 plugin.getDataFolder(),
                 "auctions.yml"
         );
@@ -44,21 +51,30 @@ public class AuctionManager {
             double price
     ) {
 
-        if (seller == null ||
-                item == null ||
-                item.getType().isAir() ||
-                price < 0) {
-
+        if (seller == null) {
             return null;
         }
 
-        Auction auction =
-                new Auction(
-                        nextId++,
-                        seller,
-                        item.clone(),
-                        price
-                );
+        if (item == null) {
+            return null;
+        }
+
+        if (item.getType().isAir()) {
+            return null;
+        }
+
+        if (price < 0) {
+            return null;
+        }
+
+        Auction auction = new Auction(
+                nextId,
+                seller,
+                item.clone(),
+                price
+        );
+
+        nextId++;
 
         auctions.add(auction);
 
@@ -71,30 +87,34 @@ public class AuctionManager {
     // REMOVE AUCTION
     // =========================================================
 
-    public synchronized boolean removeAuction(
-            int id
-    ) {
+    public synchronized boolean removeAuction(int id) {
 
-        boolean removed =
-                auctions.removeIf(
-                        auction ->
-                                auction.getId() == id
-                );
+        Auction found = null;
 
-        if (removed) {
-            save();
+        for (Auction auction : auctions) {
+
+            if (auction.getId() == id) {
+                found = auction;
+                break;
+            }
         }
 
-        return removed;
+        if (found == null) {
+            return false;
+        }
+
+        auctions.remove(found);
+
+        save();
+
+        return true;
     }
 
     // =========================================================
     // GET AUCTION
     // =========================================================
 
-    public synchronized Auction getAuction(
-            int id
-    ) {
+    public synchronized Auction getAuction(int id) {
 
         for (Auction auction : auctions) {
 
@@ -112,56 +132,68 @@ public class AuctionManager {
 
     public synchronized List<Auction> getAuctions() {
 
-        return new ArrayList<>(
-                auctions
-        );
+        return new ArrayList<>(auctions);
     }
 
     // =========================================================
     // SEARCH
     // =========================================================
+    //
+    // Example:
+    //
+    // dia
+    //
+    // Finds:
+    // DIAMOND
+    // DIAMOND_BLOCK
+    // DIAMOND_SWORD
+    // DIAMOND_PICKAXE
+    //
+    // Also searches custom/display names.
+    //
+    // =========================================================
 
-    public synchronized List<Auction> search(
-            String search
-    ) {
+    public synchronized List<Auction> search(String search) {
 
-        if (search == null ||
-                search.trim().isEmpty()) {
+        List<Auction> result = new ArrayList<>();
+
+        if (search == null) {
+            search = "";
+        }
+
+        String query = search
+                .trim()
+                .toLowerCase();
+
+        // Empty search = all auctions
+        if (query.isEmpty()) {
 
             return getAuctions();
         }
 
-        String query =
-                search
-                        .trim()
-                        .toLowerCase();
-
-        List<Auction> result =
-                new ArrayList<>();
-
         for (Auction auction : auctions) {
 
-            ItemStack item =
-                    auction.getItem();
+            if (auction == null) {
+                continue;
+            }
 
-            if (item == null ||
-                    item.getType().isAir()) {
+            ItemStack item = auction.getItem();
 
+            if (item == null) {
+                continue;
+            }
+
+            if (item.getType().isAir()) {
                 continue;
             }
 
             // =================================================
-            // MATERIAL NAME
-            // Example:
-            // dia -> DIAMOND
-            // dia -> DIAMOND_BLOCK
-            // dia -> DIAMOND_SWORD
+            // MATERIAL SEARCH
             // =================================================
 
-            String material =
-                    item.getType()
-                            .name()
-                            .toLowerCase();
+            String material = item.getType()
+                    .name()
+                    .toLowerCase();
 
             if (material.startsWith(query)) {
 
@@ -171,13 +203,12 @@ public class AuctionManager {
             }
 
             // =================================================
-            // DISPLAY NAME
+            // DISPLAY NAME SEARCH
             // =================================================
 
             if (item.hasItemMeta() &&
                     item.getItemMeta() != null &&
-                    item.getItemMeta()
-                            .hasDisplayName()) {
+                    item.getItemMeta().hasDisplayName()) {
 
                 String displayName =
                         item.getItemMeta()
@@ -185,15 +216,13 @@ public class AuctionManager {
 
                 if (displayName != null) {
 
-                    // Remove Minecraft color codes
-                    displayName =
+                    displayName = removeColorCodes(
                             displayName
-                                    .replaceAll(
-                                            "§[0-9a-fk-orx]",
-                                            ""
-                                    )
-                                    .toLowerCase()
-                                    .trim();
+                    );
+
+                    displayName = displayName
+                            .trim()
+                            .toLowerCase();
 
                     if (displayName.startsWith(query)) {
 
@@ -227,7 +256,7 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // SORT
+    // SORT ALL
     // =========================================================
 
     public synchronized List<Auction> sort(
@@ -246,7 +275,7 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // SORT LIST
+    // SORT
     // =========================================================
 
     private void sortList(
@@ -260,9 +289,12 @@ public class AuctionManager {
 
         switch (sortType) {
 
+            // =================================================
+            // NEWEST
+            // =================================================
+
             case NEWEST:
 
-                // Higher ID = newer auction
                 list.sort(
                         Comparator.comparingInt(
                                 Auction::getId
@@ -271,9 +303,12 @@ public class AuctionManager {
 
                 break;
 
+            // =================================================
+            // OLDEST
+            // =================================================
+
             case OLDEST:
 
-                // Lower ID = older auction
                 list.sort(
                         Comparator.comparingInt(
                                 Auction::getId
@@ -281,6 +316,10 @@ public class AuctionManager {
                 );
 
                 break;
+
+            // =================================================
+            // CHEAPEST
+            // =================================================
 
             case CHEAPEST:
 
@@ -291,6 +330,10 @@ public class AuctionManager {
                 );
 
                 break;
+
+            // =================================================
+            // MOST EXPENSIVE
+            // =================================================
 
             case MOST_EXPENSIVE:
 
@@ -305,7 +348,7 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // GET PLAYER AUCTIONS
+    // PLAYER AUCTIONS
     // =========================================================
 
     public synchronized List<Auction> getPlayerAuctions(
@@ -321,8 +364,15 @@ public class AuctionManager {
 
         for (Auction auction : auctions) {
 
-            if (auction.getSeller()
-                    .equals(seller)) {
+            if (auction == null) {
+                continue;
+            }
+
+            if (auction.getSeller() == null) {
+                continue;
+            }
+
+            if (auction.getSeller().equals(seller)) {
 
                 result.add(auction);
             }
@@ -332,20 +382,18 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // ALIAS FOR PLAYER AUCTIONS
+    // SELLER AUCTIONS
     // =========================================================
 
     public synchronized List<Auction> getSellerAuctions(
             UUID seller
     ) {
 
-        return getPlayerAuctions(
-                seller
-        );
+        return getPlayerAuctions(seller);
     }
 
     // =========================================================
-    // SORT PLAYER AUCTIONS
+    // PLAYER AUCTIONS + SORT
     // =========================================================
 
     public synchronized List<Auction> getPlayerAuctions(
@@ -376,7 +424,7 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // SEARCHED + SORTED AUCTIONS
+    // SEARCHED + SORTED
     // =========================================================
 
     public synchronized List<Auction> getSortedAuctions(
@@ -430,6 +478,14 @@ public class AuctionManager {
                 continue;
             }
 
+            if (auction.getSeller() == null) {
+                continue;
+            }
+
+            if (auction.getItem() == null) {
+                continue;
+            }
+
             String path =
                     "auctions." + index;
 
@@ -440,8 +496,7 @@ public class AuctionManager {
 
             config.set(
                     path + ".seller",
-                    auction.getSeller()
-                            .toString()
+                    auction.getSeller().toString()
             );
 
             config.set(
@@ -458,7 +513,7 @@ public class AuctionManager {
         }
 
         // =====================================================
-        // SAVE FILE
+        // SAVE
         // =====================================================
 
         try {
@@ -491,25 +546,23 @@ public class AuctionManager {
         }
 
         YamlConfiguration config =
-                YamlConfiguration
-                        .loadConfiguration(file);
+                YamlConfiguration.loadConfiguration(file);
 
         // =====================================================
         // NEXT ID
         // =====================================================
 
-        nextId =
-                config.getInt(
-                        "next-id",
-                        1
-                );
+        nextId = config.getInt(
+                "next-id",
+                1
+        );
 
         if (nextId < 1) {
             nextId = 1;
         }
 
         // =====================================================
-        // AUCTIONS SECTION
+        // AUCTIONS
         // =====================================================
 
         ConfigurationSection section =
@@ -518,11 +571,16 @@ public class AuctionManager {
                 );
 
         if (section == null) {
+
+            plugin.getLogger().info(
+                    "No auctions found."
+            );
+
             return;
         }
 
         // =====================================================
-        // LOAD AUCTIONS
+        // LOAD
         // =====================================================
 
         for (String key :
@@ -559,7 +617,7 @@ public class AuctionManager {
                 // VALIDATION
                 // =================================================
 
-                if (id < 0) {
+                if (id < 1) {
 
                     plugin.getLogger().warning(
                             "Skipping auction " +
@@ -571,7 +629,7 @@ public class AuctionManager {
                 }
 
                 if (sellerString == null ||
-                        sellerString.isEmpty()) {
+                        sellerString.trim().isEmpty()) {
 
                     plugin.getLogger().warning(
                             "Skipping auction " +
@@ -582,7 +640,9 @@ public class AuctionManager {
                     continue;
                 }
 
-                if (price < 0) {
+                if (price < 0 ||
+                        Double.isNaN(price) ||
+                        Double.isInfinite(price)) {
 
                     plugin.getLogger().warning(
                             "Skipping auction " +
@@ -618,11 +678,12 @@ public class AuctionManager {
                                 price
                         );
 
-                auctions.add(
-                        auction
-                );
+                auctions.add(auction);
 
-                // Make sure next ID is always higher
+                // =================================================
+                // FIX NEXT ID
+                // =================================================
+
                 if (id >= nextId) {
 
                     nextId =
@@ -645,5 +706,32 @@ public class AuctionManager {
                         auctions.size() +
                         " auctions from auctions.yml."
         );
+    }
+
+    // =========================================================
+    // REMOVE MINECRAFT COLOR CODES
+    // =========================================================
+
+    private String removeColorCodes(
+            String text
+    ) {
+
+        if (text == null) {
+            return "";
+        }
+
+        // Normal colors
+        text = text.replaceAll(
+                "§[0-9a-fk-or]",
+                ""
+        );
+
+        // Hex colors: §x§1§2§3§4§5§6
+        text = text.replaceAll(
+                "§x(§[0-9a-fA-F]){6}",
+                ""
+        );
+
+        return text;
     }
 }
