@@ -4,7 +4,7 @@ public enum SortType {
 
     NEWEST,
     OLDEST,
-    CHEAPEST,
-    MOST_EXPENSIVE
+    LOWEST_PRICE,
+    HIGHEST_PRICE
 
 }
