@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Project Information -->
+    <groupId>com.elyther</groupId>
+    <artifactId>eauctions</artifactId>
+    <version>1.0.0</version>
+
+    <name>EAuctions</name>
+    <description>A modern Vault-supported Auction House plugin for Paper 1.21.x.</description>
+
+    <!-- Java -->
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    </properties>
+
+    <!-- Repositories -->
+    <repositories>
+
+        <!-- PaperMC -->
+        <repository>
+            <id>papermc</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+
+        <!-- JitPack / VaultAPI -->
+        <repository>
+            <id>jitpack</id>
+            <url>https://jitpack.io</url>
+        </repository>
+
+    </repositories>
+
+    <!-- Dependencies -->
+    <dependencies>
+
+        <!-- Paper API 1.21.x -->
+        <dependency>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>1.21.1-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Vault API -->
+        <dependency>
+            <groupId>com.github.MilkBowl</groupId>
+            <artifactId>VaultAPI</artifactId>
+            <version>1.7</version>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- Build -->
+    <build>
+
+        <finalName>EAuctions-1.0.0</finalName>
+
+        <plugins>
+
+            <!-- Java Compiler -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+
+                <configuration>
+                    <release>21</release>
+                </configuration>
+            </plugin>
+
+            <!-- Create final JAR -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.3</version>
+
+                <executions>
+
+                    <execution>
+                        <phase>package</phase>
+
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+
+                        <configuration>
+
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>
