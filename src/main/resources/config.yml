@@ -1,0 +1,16 @@
+auction:
+  title: "&d&lEAuctions"
+  size: 54
+  currency-symbol: "$"
+  duration-hours: 72
+
+messages:
+  prefix: "&d&lEAuctions &8» "
+  no-permission: "&cYou don't have permission."
+  invalid-price: "&cInvalid price."
+  invalid-item: "&cYou must hold an item."
+  not-enough-money: "&cYou don't have enough money."
+  cannot-buy-own-item: "&cYou cannot buy your own item."
+  sold: "&aYour item has been listed for &f%price%&a."
+  bought: "&aYou bought the item for &f%price%&a."
+  reload: "&aEAuctions configuration reloaded."
