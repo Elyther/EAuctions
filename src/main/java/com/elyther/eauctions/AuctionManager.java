@@ -1,413 +1,389 @@
 package com.elyther.eauctions;
 
-import org.bukkit.inventory.ItemStack;
+import net.milkbowl.vault.economy.Economy;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.RegisteredServiceProvider;
+import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+public class EAuctions extends JavaPlugin {
 
-public class AuctionManager {
+    private Economy economy;
+    private AuctionManager auctionManager;
+    private AuctionGUI auctionGUI;
 
-    private final EAuctions plugin;
-    private Connection connection;
+    @Override
+    public void onEnable() {
 
-    public AuctionManager(EAuctions plugin) {
-        this.plugin = plugin;
+        // ==========================================
+        // CONFIG
+        // ==========================================
 
-        setupDatabase();
-    }
+        saveDefaultConfig();
 
-    // =========================================================
-    // DATABASE
-    // =========================================================
+        // ==========================================
+        // VAULT
+        // ==========================================
 
-    private void setupDatabase() {
+        if (!setupEconomy()) {
 
-        try {
-
-            if (!plugin.getDataFolder().exists()) {
-                plugin.getDataFolder().mkdirs();
-            }
-
-            File database =
-                    new File(
-                            plugin.getDataFolder(),
-                            "auctions.db"
-                    );
-
-            connection =
-                    DriverManager.getConnection(
-                            "jdbc:sqlite:" +
-                                    database.getAbsolutePath()
-                    );
-
-            try (Statement statement =
-                         connection.createStatement()) {
-
-                statement.executeUpdate(
-                        """
-                        CREATE TABLE IF NOT EXISTS auctions (
-                            id TEXT PRIMARY KEY,
-                            seller TEXT NOT NULL,
-                            item BLOB NOT NULL,
-                            price REAL NOT NULL
-                        )
-                        """
-                );
-            }
-
-            plugin.getLogger().info(
-                    "Auction database connected."
+            getLogger().severe(
+                    "================================"
             );
 
-        } catch (SQLException e) {
-
-            plugin.getLogger().severe(
-                    "Could not connect to auction database!"
+            getLogger().severe(
+                    "Vault economy was not found!"
             );
 
-            e.printStackTrace();
-        }
-    }
-
-    // =========================================================
-    // ADD AUCTION
-    // =========================================================
-
-    public void addAuction(
-            UUID seller,
-            ItemStack item,
-            double price
-    ) {
-
-        UUID id =
-                UUID.randomUUID();
-
-        byte[] itemData;
-
-        try {
-
-            itemData =
-                    item.serializeAsBytes();
-
-        } catch (Exception e) {
-
-            plugin.getLogger().severe(
-                    "Could not serialize item."
+            getLogger().severe(
+                    "Install Vault + an economy plugin."
             );
 
-            e.printStackTrace();
+            getLogger().severe(
+                    "EAuctions has been disabled."
+            );
+
+            getLogger().severe(
+                    "================================"
+            );
+
+            Bukkit.getPluginManager()
+                    .disablePlugin(this);
 
             return;
         }
 
-        String sql =
-                """
-                INSERT INTO auctions
-                (id, seller, item, price)
-                VALUES (?, ?, ?, ?)
-                """;
+        // ==========================================
+        // AUCTION MANAGER
+        // ==========================================
 
-        try (PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        auctionManager =
+                new AuctionManager(this);
 
-            statement.setString(
-                    1,
-                    id.toString()
-            );
+        // ==========================================
+        // AUCTION GUI
+        // ==========================================
 
-            statement.setString(
-                    2,
-                    seller.toString()
-            );
+        auctionGUI =
+                new AuctionGUI(this);
 
-            statement.setBytes(
-                    3,
-                    itemData
-            );
-
-            statement.setDouble(
-                    4,
-                    price
-            );
-
-            statement.executeUpdate();
-
-        } catch (SQLException e) {
-
-            plugin.getLogger().severe(
-                    "Could not add auction."
-            );
-
-            e.printStackTrace();
-        }
-    }
-
-    // =========================================================
-    // GET ALL AUCTIONS
-    // =========================================================
-
-    public List<Auction> getAuctions() {
-
-        List<Auction> auctions =
-                new ArrayList<>();
-
-        String sql =
-                "SELECT * FROM auctions";
-
-        try (PreparedStatement statement =
-                     connection.prepareStatement(sql);
-
-             ResultSet result =
-                     statement.executeQuery()) {
-
-            while (result.next()) {
-
-                Auction auction =
-                        fromResultSet(result);
-
-                if (auction != null) {
-
-                    auctions.add(auction);
-                }
-            }
-
-        } catch (SQLException e) {
-
-            e.printStackTrace();
-        }
-
-        return auctions;
-    }
-
-    // =========================================================
-    // SEARCH
-    // =========================================================
-
-    public List<Auction> search(
-            String search
-    ) {
-
-        List<Auction> result =
-                new ArrayList<>();
-
-        if (search == null ||
-                search.isBlank()) {
-
-            return getAuctions();
-        }
-
-        String query =
-                search
-                        .toLowerCase()
-                        .trim();
-
-        for (Auction auction :
-                getAuctions()) {
-
-            String material =
-                    auction.getItem()
-                            .getType()
-                            .name()
-                            .toLowerCase();
-
-            if (material.contains(query)) {
-
-                result.add(auction);
-            }
-        }
-
-        return result;
-    }
-
-    // =========================================================
-    // FIND AUCTION
-    // =========================================================
-
-    public Auction find(
-            UUID id
-    ) {
-
-        String sql =
-                "SELECT * FROM auctions WHERE id = ?";
-
-        try (PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
-
-            statement.setString(
-                    1,
-                    id.toString()
-            );
-
-            try (ResultSet result =
-                         statement.executeQuery()) {
-
-                if (result.next()) {
-
-                    return fromResultSet(result);
-                }
-            }
-
-        } catch (SQLException e) {
-
-            e.printStackTrace();
-        }
-
-        return null;
-    }
-
-    // =========================================================
-    // REMOVE AUCTION
-    // =========================================================
-
-    public boolean removeAuction(
-            Auction auction
-    ) {
-
-        if (auction == null) {
-            return false;
-        }
-
-        String sql =
-                "DELETE FROM auctions WHERE id = ?";
-
-        try (PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
-
-            statement.setString(
-                    1,
-                    auction.getId().toString()
-            );
-
-            int affected =
-                    statement.executeUpdate();
-
-            return affected > 0;
-
-        } catch (SQLException e) {
-
-            e.printStackTrace();
-
-            return false;
-        }
-    }
-
-    // =========================================================
-    // RESULT SET → AUCTION
-    // =========================================================
-
-    private Auction fromResultSet(
-            ResultSet result
-    ) throws SQLException {
-
-        UUID id =
-                UUID.fromString(
-                        result.getString("id")
+        Bukkit.getPluginManager()
+                .registerEvents(
+                        auctionGUI,
+                        this
                 );
 
-        UUID seller =
-                UUID.fromString(
-                        result.getString("seller")
-                );
+        // ==========================================
+        // COMMAND
+        // ==========================================
 
-        byte[] itemData =
-                result.getBytes("item");
+        if (getCommand("ah") == null) {
 
-        double price =
-                result.getDouble("price");
-
-        ItemStack item;
-
-        try {
-
-            item =
-                    ItemStack.deserializeBytes(
-                            itemData
-                    );
-
-        } catch (Exception e) {
-
-            plugin.getLogger().warning(
-                    "Could not deserialize auction item: "
-                            + id
+            getLogger().severe(
+                    "Command /ah is missing from plugin.yml!"
             );
 
-            return null;
+            Bukkit.getPluginManager()
+                    .disablePlugin(this);
+
+            return;
         }
 
-        return new Auction(
-                id,
-                seller,
-                item,
-                price
+        AuctionCommand command =
+                new AuctionCommand(
+                        this,
+                        auctionGUI
+                );
+
+        getCommand("ah")
+                .setExecutor(command);
+
+        getCommand("ah")
+                .setTabCompleter(command);
+
+        // ==========================================
+        // ENABLE MESSAGE
+        // ==========================================
+
+        getLogger().info(
+                "================================"
+        );
+
+        getLogger().info(
+                "        EAuctions Enabled"
+        );
+
+        getLogger().info(
+                "================================"
+        );
+
+        getLogger().info(
+                "Vault: Connected"
+        );
+
+        getLogger().info(
+                "Economy: " +
+                        economy.getName()
+        );
+
+        getLogger().info(
+                "Command: /ah"
+        );
+
+        getLogger().info(
+                "Database: SQLite"
+        );
+
+        getLogger().info(
+                "Made by Elyther"
         );
     }
 
-    // =========================================================
-    // CLOSE DATABASE
-    // =========================================================
+    // ==========================================
+    // DISABLE
+    // ==========================================
 
-    public void close() {
+    @Override
+    public void onDisable() {
 
-        if (connection == null) {
-            return;
+        if (auctionManager != null) {
+
+            auctionManager.close();
         }
+
+        getLogger().info(
+                "EAuctions disabled."
+        );
+    }
+
+    // ==========================================
+    // VAULT ECONOMY
+    // ==========================================
+
+    private boolean setupEconomy() {
+
+        if (Bukkit.getPluginManager()
+                .getPlugin("Vault") == null) {
+
+            return false;
+        }
+
+        RegisteredServiceProvider<Economy> provider =
+                Bukkit.getServicesManager()
+                        .getRegistration(
+                                Economy.class
+                        );
+
+        if (provider == null) {
+
+            return false;
+        }
+
+        economy =
+                provider.getProvider();
+
+        return economy != null;
+    }
+
+    // ==========================================
+    // GET ECONOMY
+    // ==========================================
+
+    public Economy getEconomy() {
+
+        return economy;
+    }
+
+    // ==========================================
+    // GET AUCTION MANAGER
+    // ==========================================
+
+    public AuctionManager getAuctionManager() {
+
+        return auctionManager;
+    }
+
+    // ==========================================
+    // GET AUCTION GUI
+    // ==========================================
+
+    public AuctionGUI getAuctionGUI() {
+
+        return auctionGUI;
+    }
+
+    // ==========================================
+    // PARSE PRICE
+    // ==========================================
+
+    public double parsePrice(
+            String input
+    ) {
+
+        if (input == null ||
+                input.isBlank()) {
+
+            return -1;
+        }
+
+        input =
+                input
+                        .toLowerCase()
+                        .replace(",", "")
+                        .trim();
 
         try {
 
-            if (!connection.isClosed()) {
+            double multiplier = 1.0;
 
-                connection.close();
+            // ==============================
+            // THOUSAND
+            // 5k
+            // ==============================
+
+            if (input.endsWith("k")) {
+
+                multiplier = 1_000.0;
+
+                input =
+                        input.substring(
+                                0,
+                                input.length() - 1
+                        );
             }
 
-        } catch (SQLException e) {
+            // ==============================
+            // MILLION
+            // 5m
+            // ==============================
 
-            e.printStackTrace();
+            else if (input.endsWith("m")) {
+
+                multiplier = 1_000_000.0;
+
+                input =
+                        input.substring(
+                                0,
+                                input.length() - 1
+                        );
+            }
+
+            // ==============================
+            // BILLION
+            // 5b
+            // ==============================
+
+            else if (input.endsWith("b")) {
+
+                multiplier = 1_000_000_000.0;
+
+                input =
+                        input.substring(
+                                0,
+                                input.length() - 1
+                        );
+            }
+
+            double number =
+                    Double.parseDouble(input);
+
+            double result =
+                    number * multiplier;
+
+            if (result <= 0 ||
+                    Double.isNaN(result) ||
+                    Double.isInfinite(result)) {
+
+                return -1;
+            }
+
+            return result;
+
+        } catch (NumberFormatException e) {
+
+            return -1;
         }
     }
 
-    // =========================================================
-    // AUCTION
-    // =========================================================
+    // ==========================================
+    // FORMAT MONEY
+    // ==========================================
 
-    public static class Auction {
+    public String formatMoney(
+            double amount
+    ) {
 
-        private final UUID id;
-        private final UUID seller;
-        private final ItemStack item;
-        private final double price;
+        if (amount >= 1_000_000_000) {
 
-        public Auction(
-                UUID id,
-                UUID seller,
-                ItemStack item,
-                double price
-        ) {
-
-            this.id = id;
-            this.seller = seller;
-            this.item = item.clone();
-            this.price = price;
+            return formatNumber(
+                    amount / 1_000_000_000
+            ) + "b";
         }
 
-        public UUID getId() {
-            return id;
+        if (amount >= 1_000_000) {
+
+            return formatNumber(
+                    amount / 1_000_000
+            ) + "m";
         }
 
-        public UUID getSeller() {
-            return seller;
+        if (amount >= 1_000) {
+
+            return formatNumber(
+                    amount / 1_000
+            ) + "k";
         }
 
-        public ItemStack getItem() {
-            return item.clone();
+        return formatNumber(amount);
+    }
+
+    // ==========================================
+    // FORMAT NUMBER
+    // ==========================================
+
+    private String formatNumber(
+            double number
+    ) {
+
+        if (number == Math.floor(number)) {
+
+            return String.format(
+                    "%.0f",
+                    number
+            );
         }
 
-        public double getPrice() {
-            return price;
+        if (number * 10 ==
+                Math.floor(number * 10)) {
+
+            return String.format(
+                    "%.1f",
+                    number
+            );
         }
+
+        return String.format(
+                "%.2f",
+                number
+        );
+    }
+
+    // ==========================================
+    // COLOR
+    // ==========================================
+
+    public String color(
+            String text
+    ) {
+
+        if (text == null) {
+
+            return "";
+        }
+
+        return org.bukkit.ChatColor
+                .translateAlternateColorCodes(
+                        '&',
+                        text
+                );
     }
 }
