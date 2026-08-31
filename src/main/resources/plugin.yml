@@ -4,13 +4,12 @@ main: com.elyther.eauctions.EAuctions
 api-version: '1.21'
 
 author: Elyther
-description: Modern Vault-supported Auction House plugin.
+description: A modern Vault-supported Auction House plugin.
 
 depend:
   - Vault
 
 commands:
-
   ah:
     description: Open the Auction House
     usage: /ah [item|sell|reload]
@@ -19,15 +18,14 @@ commands:
       - auctions
 
 permissions:
-
   eauctions.use:
-    description: Allows the player to use the Auction House
+    description: Use Auction House
     default: true
 
   eauctions.sell:
-    description: Allows the player to sell items
+    description: Sell items on Auction House
     default: true
 
   eauctions.reload:
-    description: Allows the player to reload EAuctions
+    description: Reload EAuctions
     default: op
