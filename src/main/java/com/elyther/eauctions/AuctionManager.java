@@ -7,6 +7,7 @@ import org.bukkit.inventory.ItemStack;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,6 +34,10 @@ public class AuctionManager {
         load();
     }
 
+    // =========================================================
+    // ADD AUCTION
+    // =========================================================
+
     public synchronized Auction addAuction(
             UUID seller,
             ItemStack item,
@@ -54,13 +59,18 @@ public class AuctionManager {
         return auction;
     }
 
+    // =========================================================
+    // REMOVE AUCTION
+    // =========================================================
+
     public synchronized boolean removeAuction(
             int id
     ) {
 
         boolean removed =
                 auctions.removeIf(
-                        auction -> auction.getId() == id
+                        auction ->
+                                auction.getId() == id
                 );
 
         if (removed) {
@@ -69,6 +79,10 @@ public class AuctionManager {
 
         return removed;
     }
+
+    // =========================================================
+    // GET AUCTION
+    // =========================================================
 
     public synchronized Auction getAuction(
             int id
@@ -84,9 +98,20 @@ public class AuctionManager {
         return null;
     }
 
+    // =========================================================
+    // ALL AUCTIONS
+    // =========================================================
+
     public synchronized List<Auction> getAuctions() {
-        return new ArrayList<>(auctions);
+
+        return new ArrayList<>(
+                auctions
+        );
     }
+
+    // =========================================================
+    // SEARCH
+    // =========================================================
 
     public synchronized List<Auction> search(
             String search
@@ -99,10 +124,25 @@ public class AuctionManager {
         }
 
         String query =
-                search.toLowerCase();
+                search
+                        .trim()
+                        .toLowerCase();
 
         List<Auction> result =
                 new ArrayList<>();
+
+        /*
+         * Axtarış:
+         *
+         * dia
+         *
+         * -> diamond
+         * -> diamond_block
+         * -> diamond_ore
+         * -> diamond_sword
+         *
+         * kimi nəticələri tapır.
+         */
 
         for (Auction auction : auctions) {
 
@@ -126,8 +166,132 @@ public class AuctionManager {
                                 .toLowerCase();
             }
 
-            if (material.contains(query) ||
+            /*
+             * Material və ya custom item
+             * adında axtarış sözü varsa.
+             */
+
+            if (material.startsWith(query) ||
+                    material.contains(query) ||
+                    displayName.startsWith(query) ||
                     displayName.contains(query)) {
+
+                result.add(auction);
+            }
+        }
+
+        /*
+         * Əvvəl tam başlayan nəticələr,
+         * sonra contains nəticələri.
+         */
+
+        result.sort(
+                Comparator.comparingInt(
+                        auction -> {
+
+                            String material =
+                                    auction.getItem()
+                                            .getType()
+                                            .name()
+                                            .toLowerCase();
+
+                            return material.startsWith(query)
+                                    ? 0
+                                    : 1;
+                        }
+                )
+        );
+
+        return result;
+    }
+
+    // =========================================================
+    // CHEAPEST
+    // =========================================================
+
+    public synchronized List<Auction> getCheapest() {
+
+        List<Auction> result =
+                getAuctions();
+
+        result.sort(
+                Comparator.comparingDouble(
+                        Auction::getPrice
+                )
+        );
+
+        return result;
+    }
+
+    // =========================================================
+    // MOST EXPENSIVE
+    // =========================================================
+
+    public synchronized List<Auction> getMostExpensive() {
+
+        List<Auction> result =
+                getAuctions();
+
+        result.sort(
+                Comparator.comparingDouble(
+                        Auction::getPrice
+                ).reversed()
+        );
+
+        return result;
+    }
+
+    // =========================================================
+    // NEWEST
+    // =========================================================
+
+    public synchronized List<Auction> getNewest() {
+
+        List<Auction> result =
+                getAuctions();
+
+        result.sort(
+                Comparator.comparingInt(
+                        Auction::getId
+                ).reversed()
+        );
+
+        return result;
+    }
+
+    // =========================================================
+    // OLDEST
+    // =========================================================
+
+    public synchronized List<Auction> getOldest() {
+
+        List<Auction> result =
+                getAuctions();
+
+        result.sort(
+                Comparator.comparingInt(
+                        Auction::getId
+                )
+        );
+
+        return result;
+    }
+
+    // =========================================================
+    // PLAYER AUCTIONS
+    // =========================================================
+
+    public synchronized List<Auction> getPlayerAuctions(
+            UUID player
+    ) {
+
+        List<Auction> result =
+                new ArrayList<>();
+
+        for (Auction auction : auctions) {
+
+            if (auction.getSeller()
+                    .equals(player)) {
 
                 result.add(auction);
             }
@@ -136,10 +300,36 @@ public class AuctionManager {
         return result;
     }
 
+    // =========================================================
+    // PLAYER AUCTIONS CHEAPEST
+    // =========================================================
+
+    public synchronized List<Auction> getPlayerAuctionsCheapest(
+            UUID player
+    ) {
+
+        List<Auction> result =
+                getPlayerAuctions(player);
+
+        result.sort(
+                Comparator.comparingDouble(
+                        Auction::getPrice
+                )
+        );
+
+        return result;
+    }
+
+    // =========================================================
+    // SAVE
+    // =========================================================
+
     public synchronized void save() {
 
         if (!plugin.getDataFolder().exists()) {
-            plugin.getDataFolder().mkdirs();
+
+            plugin.getDataFolder()
+                    .mkdirs();
         }
 
         YamlConfiguration config =
@@ -164,7 +354,8 @@ public class AuctionManager {
 
             config.set(
                     path + ".seller",
-                    auction.getSeller().toString()
+                    auction.getSeller()
+                            .toString()
             );
 
             config.set(
@@ -194,6 +385,10 @@ public class AuctionManager {
         }
     }
 
+    // =========================================================
+    // LOAD
+    // =========================================================
+
     private synchronized void load() {
 
         auctions.clear();
@@ -203,7 +398,8 @@ public class AuctionManager {
         }
 
         YamlConfiguration config =
-                YamlConfiguration.loadConfiguration(file);
+                YamlConfiguration
+                        .loadConfiguration(file);
 
         nextId =
                 config.getInt(
@@ -250,6 +446,7 @@ public class AuctionManager {
 
                 if (sellerString == null ||
                         item == null) {
+
                     continue;
                 }
 
@@ -266,6 +463,16 @@ public class AuctionManager {
                                 price
                         )
                 );
+
+                /*
+                 * Əgər köhnə faylda next-id
+                 * düzgün deyilsə, ID yenə də
+                 * düzgün davam etsin.
+                 */
+
+                if (id >= nextId) {
+                    nextId = id + 1;
+                }
 
             } catch (Exception e) {
 
