@@ -132,13 +132,15 @@ public class AuctionGUI implements Listener {
 
             auctions =
                     plugin.getAuctionManager()
-                            .getSortedAuctions(sort);
+                            .getSortedAuctions(
+                                    sort
+                            );
 
         } else {
 
             auctions =
                     plugin.getAuctionManager()
-                            .searchSorted(
+                            .getSortedAuctions(
                                     query,
                                     sort
                             );
@@ -153,8 +155,7 @@ public class AuctionGUI implements Listener {
             List<Auction> mine =
                     new ArrayList<>();
 
-            for (Auction auction :
-                    auctions) {
+            for (Auction auction : auctions) {
 
                 if (auction.getSeller()
                         .equals(uuid)) {
@@ -205,6 +206,15 @@ public class AuctionGUI implements Listener {
             Auction auction =
                     auctions.get(i);
 
+            if (auction == null ||
+                    auction.getItem() == null ||
+                    auction.getItem()
+                            .getType()
+                            .isAir()) {
+
+                continue;
+            }
+
             ItemStack display =
                     auction.getItem().clone();
 
@@ -214,7 +224,8 @@ public class AuctionGUI implements Listener {
             if (meta != null) {
 
                 List<String> lore =
-                        meta.hasLore()
+                        meta.hasLore() &&
+                                meta.getLore() != null
                                 ? new ArrayList<>(
                                 meta.getLore()
                         )
@@ -243,7 +254,8 @@ public class AuctionGUI implements Listener {
                                         plugin.formatMoney(
                                                 auction.getPrice()
                                         )
-                        );
+                        )
+                );
 
                 lore.add("");
 
@@ -283,13 +295,11 @@ public class AuctionGUI implements Listener {
                         " "
                 );
 
-        // 2nd slot
         inventory.setItem(
                 46,
                 glass
         );
 
-        // 8th slot
         inventory.setItem(
                 52,
                 glass
@@ -297,7 +307,6 @@ public class AuctionGUI implements Listener {
 
         // =====================================================
         // PREVIOUS PAGE
-        // 1st slot
         // =====================================================
 
         if (page > 0) {
@@ -325,7 +334,6 @@ public class AuctionGUI implements Listener {
 
         // =====================================================
         // COMMANDS
-        // 3rd slot
         // =====================================================
 
         inventory.setItem(
@@ -347,7 +355,6 @@ public class AuctionGUI implements Listener {
 
         // =====================================================
         // MY AUCTIONS
-        // 4th slot
         // =====================================================
 
         if (onlyMine) {
@@ -383,7 +390,6 @@ public class AuctionGUI implements Listener {
 
         // =====================================================
         // SORT
-        // 5th slot
         // =====================================================
 
         inventory.setItem(
@@ -415,7 +421,6 @@ public class AuctionGUI implements Listener {
 
         // =====================================================
         // SEARCH
-        // 6th slot
         // =====================================================
 
         String searchDisplay =
@@ -437,8 +442,7 @@ public class AuctionGUI implements Listener {
         );
 
         // =====================================================
-        // 7th SLOT
-        // Empty
+        // EMPTY SLOT
         // =====================================================
 
         inventory.setItem(
@@ -448,7 +452,6 @@ public class AuctionGUI implements Listener {
 
         // =====================================================
         // NEXT PAGE
-        // 9th slot
         // =====================================================
 
         if (end < auctions.size()) {
@@ -497,19 +500,19 @@ public class AuctionGUI implements Listener {
         switch (type) {
 
             case NEWEST:
-                name = "Newest → Oldest";
+                name = "Newest -> Oldest";
                 break;
 
             case OLDEST:
-                name = "Oldest → Newest";
+                name = "Oldest -> Newest";
                 break;
 
             case CHEAPEST:
-                name = "Cheapest → Most Expensive";
+                name = "Cheapest -> Most Expensive";
                 break;
 
             case MOST_EXPENSIVE:
-                name = "Most Expensive → Cheapest";
+                name = "Most Expensive -> Cheapest";
                 break;
 
             default:
@@ -521,7 +524,6 @@ public class AuctionGUI implements Listener {
             return color(
                     "&a✔ &f" + name
             );
-
         }
 
         return color(
@@ -539,10 +541,13 @@ public class AuctionGUI implements Listener {
     ) {
 
         if (!(event.getWhoClicked()
-                instanceof Player player)) {
+                instanceof Player)) {
 
             return;
         }
+
+        Player player =
+                (Player) event.getWhoClicked();
 
         if (!event.getView()
                 .getTitle()
@@ -568,7 +573,7 @@ public class AuctionGUI implements Listener {
                 player.getUniqueId();
 
         // =====================================================
-        // PREVIOUS
+        // PREVIOUS PAGE
         // =====================================================
 
         if (slot == 45) {
@@ -678,10 +683,11 @@ public class AuctionGUI implements Listener {
         }
 
         // =====================================================
-        // 7TH SLOT
+        // EMPTY SLOT
         // =====================================================
 
         if (slot == 51) {
+
             return;
         }
 
@@ -692,10 +698,9 @@ public class AuctionGUI implements Listener {
         if (slot == 53) {
 
             String query =
-                    plugin.getAuctionSearch()
-                            .getCurrentSearch(
-                                    player
-                            );
+                    getSearch(
+                            player
+                    );
 
             List<Auction> auctions =
                     getCurrentAuctions(
@@ -733,13 +738,12 @@ public class AuctionGUI implements Listener {
         // =====================================================
 
         if (slot >= 0 &&
-                slot < 45) {
+                slot < AUCTION_SLOTS) {
 
             String query =
-                    plugin.getAuctionSearch()
-                            .getCurrentSearch(
-                                    player
-                            );
+                    getSearch(
+                            player
+                    );
 
             List<Auction> auctions =
                     getCurrentAuctions(
@@ -766,11 +770,39 @@ public class AuctionGUI implements Listener {
             Auction auction =
                     auctions.get(index);
 
-            buy(
-                    player,
-                    auction
-            );
+            if (auction != null) {
+
+                buy(
+                        player,
+                        auction
+                );
+            }
         }
+    }
+
+    // =========================================================
+    // GET SEARCH
+    // =========================================================
+
+    private String getSearch(
+            Player player
+    ) {
+
+        AuctionSearch search =
+                plugin.getAuctionSearch();
+
+        if (search == null) {
+            return "";
+        }
+
+        String current =
+                search.getCurrentSearch(
+                        player
+                );
+
+        return current == null
+                ? ""
+                : current;
     }
 
     // =========================================================
@@ -812,19 +844,22 @@ public class AuctionGUI implements Listener {
 
             auctions =
                     plugin.getAuctionManager()
-                            .searchSorted(
+                            .getSortedAuctions(
                                     query,
                                     sort
                             );
         }
+
+        // =====================================================
+        // ONLY MY AUCTIONS
+        // =====================================================
 
         if (onlyMine) {
 
             List<Auction> mine =
                     new ArrayList<>();
 
-            for (Auction auction :
-                    auctions) {
+            for (Auction auction : auctions) {
 
                 if (auction.getSeller()
                         .equals(uuid)) {
@@ -848,10 +883,9 @@ public class AuctionGUI implements Listener {
     ) {
 
         String query =
-                plugin.getAuctionSearch()
-                        .getCurrentSearch(
-                                player
-                        );
+                getSearch(
+                        player
+                );
 
         openGUI(
                 player,
@@ -866,6 +900,10 @@ public class AuctionGUI implements Listener {
     private SortType getNextSort(
             SortType current
     ) {
+
+        if (current == null) {
+            return SortType.NEWEST;
+        }
 
         switch (current) {
 
@@ -1031,10 +1069,36 @@ public class AuctionGUI implements Listener {
         // GIVE ITEM
         // =====================================================
 
-        buyer.getInventory()
-                .addItem(
-                        current.getItem()
-                );
+        HashMap<Integer, ItemStack> leftover =
+                buyer.getInventory()
+                        .addItem(
+                                current.getItem().clone()
+                        );
+
+        // Safety: if something remains, refund buyer
+        if (!leftover.isEmpty()) {
+
+            plugin.getEconomy()
+                    .withdrawPlayer(
+                            seller,
+                            price
+                    );
+
+            plugin.getEconomy()
+                    .depositPlayer(
+                            buyer,
+                            price
+                    );
+
+            buyer.sendMessage(
+                    prefix() +
+                            color(
+                                    "&cCould not add the item to your inventory."
+                            )
+            );
+
+            return;
+        }
 
         // =====================================================
         // REMOVE AUCTION
@@ -1104,6 +1168,12 @@ public class AuctionGUI implements Listener {
             ItemStack item
     ) {
 
+        if (item == null ||
+                item.getType().isAir()) {
+
+            return false;
+        }
+
         int remaining =
                 item.getAmount();
 
@@ -1146,6 +1216,12 @@ public class AuctionGUI implements Listener {
             Auction auction
     ) {
 
+        if (auction == null ||
+                auction.getSeller() == null) {
+
+            return "Unknown";
+        }
+
         OfflinePlayer seller =
                 Bukkit.getOfflinePlayer(
                         auction.getSeller()
@@ -1183,8 +1259,7 @@ public class AuctionGUI implements Listener {
             List<String> list =
                     new ArrayList<>();
 
-            for (String line :
-                    lore) {
+            for (String line : lore) {
 
                 list.add(
                         color(line)
