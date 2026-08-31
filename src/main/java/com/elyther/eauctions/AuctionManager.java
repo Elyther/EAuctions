@@ -22,7 +22,7 @@ public class AuctionManager {
 
     private final File file;
 
-    public AuctionManager( EAuctions plugin) {
+    public AuctionManager(EAuctions plugin) {
 
         this.plugin = plugin;
 
@@ -43,6 +43,14 @@ public class AuctionManager {
             ItemStack item,
             double price
     ) {
+
+        if (seller == null ||
+                item == null ||
+                item.getType().isAir() ||
+                price < 0) {
+
+            return null;
+        }
 
         Auction auction =
                 new Auction(
@@ -131,20 +139,23 @@ public class AuctionManager {
         List<Auction> result =
                 new ArrayList<>();
 
-        for (Auction auction :
-                auctions) {
+        for (Auction auction : auctions) {
 
             ItemStack item =
                     auction.getItem();
 
             if (item == null ||
-                    item.getType() == null) {
+                    item.getType().isAir()) {
 
                 continue;
             }
 
             // =================================================
-            // MATERIAL
+            // MATERIAL NAME
+            // Example:
+            // dia -> DIAMOND
+            // dia -> DIAMOND_BLOCK
+            // dia -> DIAMOND_SWORD
             // =================================================
 
             String material =
@@ -152,53 +163,43 @@ public class AuctionManager {
                             .name()
                             .toLowerCase();
 
+            if (material.startsWith(query)) {
+
+                result.add(auction);
+
+                continue;
+            }
+
             // =================================================
             // DISPLAY NAME
             // =================================================
-
-            String displayName = "";
 
             if (item.hasItemMeta() &&
                     item.getItemMeta() != null &&
                     item.getItemMeta()
                             .hasDisplayName()) {
 
-                displayName =
+                String displayName =
                         item.getItemMeta()
-                                .getDisplayName()
-                                .toLowerCase();
-            }
+                                .getDisplayName();
 
-            // =================================================
-            // PLAIN DISPLAY NAME
-            // Remove Minecraft color codes
-            // =================================================
+                if (displayName != null) {
 
-            String plainDisplayName =
-                    displayName
-                            .replaceAll(
-                                    "§[0-9a-fk-orx]",
-                                    ""
-                            )
-                            .toLowerCase();
+                    // Remove Minecraft color codes
+                    displayName =
+                            displayName
+                                    .replaceAll(
+                                            "§[0-9a-fk-orx]",
+                                            ""
+                                    )
+                                    .toLowerCase()
+                                    .trim();
 
-            // =================================================
-            // MATCH
-            //
-            // Example:
-            // dia
-            //
-            // DIAMOND
-            // DIAMOND_BLOCK
-            // DIAMOND_ORE
-            // etc.
-            // =================================================
+                    if (displayName.startsWith(query)) {
 
-            if (material.contains(query) ||
-                    displayName.contains(query) ||
-                    plainDisplayName.contains(query)) {
-
-                result.add(auction);
+                        result.add(auction);
+                    }
+                }
             }
         }
 
@@ -209,7 +210,7 @@ public class AuctionManager {
     // SEARCH + SORT
     // =========================================================
 
-    public synchronized List<Auction> searchSorted(
+    public synchronized List<Auction> search(
             String search,
             SortType sortType
     ) {
@@ -226,17 +227,15 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // SORT ALL
+    // SORT
     // =========================================================
 
-    public synchronized List<Auction> getSortedAuctions(
+    public synchronized List<Auction> sort(
             SortType sortType
     ) {
 
         List<Auction> result =
-                new ArrayList<>(
-                        auctions
-                );
+                getAuctions();
 
         sortList(
                 result,
@@ -247,7 +246,7 @@ public class AuctionManager {
     }
 
     // =========================================================
-    // SORT
+    // SORT LIST
     // =========================================================
 
     private void sortList(
@@ -256,19 +255,14 @@ public class AuctionManager {
     ) {
 
         if (sortType == null) {
-
-            sortType =
-                    SortType.NEWEST;
+            sortType = SortType.NEWEST;
         }
 
         switch (sortType) {
 
-            // =============================================
-            // NEWEST
-            // =============================================
-
             case NEWEST:
 
+                // Higher ID = newer auction
                 list.sort(
                         Comparator.comparingInt(
                                 Auction::getId
@@ -277,12 +271,9 @@ public class AuctionManager {
 
                 break;
 
-            // =============================================
-            // OLDEST
-            // =============================================
-
             case OLDEST:
 
+                // Lower ID = older auction
                 list.sort(
                         Comparator.comparingInt(
                                 Auction::getId
@@ -290,10 +281,6 @@ public class AuctionManager {
                 );
 
                 break;
-
-            // =============================================
-            // CHEAPEST
-            // =============================================
 
             case CHEAPEST:
 
@@ -304,10 +291,6 @@ public class AuctionManager {
                 );
 
                 break;
-
-            // =============================================
-            // MOST EXPENSIVE
-            // =============================================
 
             case MOST_EXPENSIVE:
 
@@ -322,19 +305,103 @@ public class AuctionManager {
     }
 
     // =========================================================
+    // GET PLAYER AUCTIONS
+    // =========================================================
+
+    public synchronized List<Auction> getPlayerAuctions(
+            UUID seller
+    ) {
+
+        List<Auction> result =
+                new ArrayList<>();
+
+        if (seller == null) {
+            return result;
+        }
+
+        for (Auction auction : auctions) {
+
+            if (auction.getSeller()
+                    .equals(seller)) {
+
+                result.add(auction);
+            }
+        }
+
+        return result;
+    }
+
+    // =========================================================
+    // ALIAS FOR PLAYER AUCTIONS
+    // =========================================================
+
+    public synchronized List<Auction> getSellerAuctions(
+            UUID seller
+    ) {
+
+        return getPlayerAuctions(
+                seller
+        );
+    }
+
+    // =========================================================
+    // SORT PLAYER AUCTIONS
+    // =========================================================
+
+    public synchronized List<Auction> getPlayerAuctions(
+            UUID seller,
+            SortType sortType
+    ) {
+
+        List<Auction> result =
+                getPlayerAuctions(seller);
+
+        sortList(
+                result,
+                sortType
+        );
+
+        return result;
+    }
+
+    // =========================================================
+    // SORTED AUCTIONS
+    // =========================================================
+
+    public synchronized List<Auction> getSortedAuctions(
+            SortType sortType
+    ) {
+
+        return sort(sortType);
+    }
+
+    // =========================================================
+    // SEARCHED + SORTED AUCTIONS
+    // =========================================================
+
+    public synchronized List<Auction> getSortedAuctions(
+            String search,
+            SortType sortType
+    ) {
+
+        return search(
+                search,
+                sortType
+        );
+    }
+
+    // =========================================================
     // SAVE
     // =========================================================
 
     public synchronized void save() {
 
-        if (!plugin.getDataFolder()
-                .exists()) {
+        if (!plugin.getDataFolder().exists()) {
 
-            if (!plugin.getDataFolder()
-                    .mkdirs()) {
+            if (!plugin.getDataFolder().mkdirs()) {
 
                 plugin.getLogger().warning(
-                        "Could not create plugin data folder!"
+                        "Could not create plugin data folder."
                 );
             }
         }
@@ -357,8 +424,11 @@ public class AuctionManager {
 
         int index = 0;
 
-        for (Auction auction :
-                auctions) {
+        for (Auction auction : auctions) {
+
+            if (auction == null) {
+                continue;
+            }
 
             String path =
                     "auctions." + index;
@@ -415,13 +485,7 @@ public class AuctionManager {
 
         if (!file.exists()) {
 
-            plugin.getLogger().info(
-                    "No auctions.yml found. Creating a new one."
-            );
-
             nextId = 1;
-
-            save();
 
             return;
         }
@@ -440,6 +504,10 @@ public class AuctionManager {
                         1
                 );
 
+        if (nextId < 1) {
+            nextId = 1;
+        }
+
         // =====================================================
         // AUCTIONS SECTION
         // =====================================================
@@ -450,11 +518,6 @@ public class AuctionManager {
                 );
 
         if (section == null) {
-
-            plugin.getLogger().info(
-                    "No auctions found in auctions.yml."
-            );
-
             return;
         }
 
@@ -472,7 +535,8 @@ public class AuctionManager {
 
                 int id =
                         config.getInt(
-                                path + ".id"
+                                path + ".id",
+                                -1
                         );
 
                 String sellerString =
@@ -482,7 +546,8 @@ public class AuctionManager {
 
                 double price =
                         config.getDouble(
-                                path + ".price"
+                                path + ".price",
+                                -1
                         );
 
                 ItemStack item =
@@ -490,29 +555,51 @@ public class AuctionManager {
                                 path + ".item"
                         );
 
-                // =============================================
+                // =================================================
                 // VALIDATION
-                // =============================================
+                // =================================================
+
+                if (id < 0) {
+
+                    plugin.getLogger().warning(
+                            "Skipping auction " +
+                                    key +
+                                    ": invalid ID."
+                    );
+
+                    continue;
+                }
 
                 if (sellerString == null ||
                         sellerString.isEmpty()) {
 
                     plugin.getLogger().warning(
-                            "Auction " +
+                            "Skipping auction " +
                                     key +
-                                    " has no seller. Skipping."
+                                    ": seller missing."
+                    );
+
+                    continue;
+                }
+
+                if (price < 0) {
+
+                    plugin.getLogger().warning(
+                            "Skipping auction " +
+                                    key +
+                                    ": invalid price."
                     );
 
                     continue;
                 }
 
                 if (item == null ||
-                        item.getType() == null) {
+                        item.getType().isAir()) {
 
                     plugin.getLogger().warning(
-                            "Auction " +
+                            "Skipping auction " +
                                     key +
-                                    " has no item. Skipping."
+                                    ": item missing."
                     );
 
                     continue;
@@ -522,10 +609,6 @@ public class AuctionManager {
                         UUID.fromString(
                                 sellerString
                         );
-
-                // =============================================
-                // CREATE AUCTION
-                // =============================================
 
                 Auction auction =
                         new Auction(
@@ -539,10 +622,7 @@ public class AuctionManager {
                         auction
                 );
 
-                // =============================================
-                // MAKE SURE NEXT ID IS SAFE
-                // =============================================
-
+                // Make sure next ID is always higher
                 if (id >= nextId) {
 
                     nextId =
@@ -554,17 +634,16 @@ public class AuctionManager {
                 plugin.getLogger().warning(
                         "Could not load auction " +
                                 key +
-                                "!"
+                                ": " +
+                                e.getMessage()
                 );
-
-                e.printStackTrace();
             }
         }
 
         plugin.getLogger().info(
                 "Loaded " +
                         auctions.size() +
-                        " auction(s)."
+                        " auctions from auctions.yml."
         );
     }
 }
