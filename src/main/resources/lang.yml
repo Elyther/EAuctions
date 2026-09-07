@@ -1,92 +1,205 @@
 prefix: "&d&lEAuctions &8» "
 
 gui:
+
   title: "&5EAuctions"
 
-  commands:
-    title: "&d&lEAuctions Commands"
-    open: "&7/ah"
-    open-description: "&7Open Auction House"
-    sell: "&7/ah sell <price>"
-    sell-description: "&7Sell an item"
-    reload: "&7/ah reload"
-    reload-description: "&7Reload plugin"
+  # =======================================================
+  # CATEGORIES
+  # =======================================================
+
+  categories:
+
+    title: "&5Auction Categories"
+
+    name: "&e&lCategories"
+
+    current: "&7Current: &f%category%"
+
+    click: "&eClick to open categories."
+
+    select: "&eClick to select."
+
+    all: "&f&lAll Items"
+
+    blocks: "&e&lBlocks"
+
+    ores: "&b&lOres"
+
+    tools: "&a&lTools"
+
+    weapons: "&c&lWeapons"
+
+    armor: "&9&lArmor"
+
+    food: "&6&lFood"
+
+    redstone: "&4&lRedstone"
+
+    farming: "&2&lFarming"
+
+    decoration: "&d&lDecoration"
+
+    other: "&7&lOther"
+
+  # =======================================================
+  # PREVIOUS / NEXT
+  # =======================================================
 
   previous:
+
     name: "&e&lPrevious Page"
+
     lore: "&7Click to go back."
 
   next:
+
     name: "&e&lNext Page"
+
     lore: "&7Click to go forward."
 
-  my-auctions:
-    name: "&d&lMy Auctions"
-    viewing-name: "&a&lMy Auctions"
-    viewing: "&aCurrently viewing"
-    your-auctions: "&aYour auctions."
-    description: "&7View items you are"
-    description-2: "&7currently selling."
-    open: "&eClick to open."
-    all: "&eClick to show all auctions."
+  # =======================================================
+  # SORT
+  # =======================================================
 
   sort:
+
     name: "&b&lSort Auctions"
+
     newest: "&7Newest -> Oldest"
+
     oldest: "&7Oldest -> Newest"
+
     cheapest: "&7Cheapest -> Most Expensive"
+
     expensive: "&7Most Expensive -> Cheapest"
+
     selected: "&a✔ &f"
+
     not-selected: "&7○ &f"
+
     click: "&eClick to change."
 
+  # =======================================================
+  # REFRESH
+  # =======================================================
+
+  refresh:
+
+    name: "&a&lRefresh"
+
+    description: "&7Refresh the Auction House."
+
+    click: "&eClick to refresh."
+
+  # =======================================================
+  # SEARCH
+  # =======================================================
+
   search:
+
     name: "&b&lSearch"
+
     current: "&7Current search:"
+
     all-items: "All items"
+
     click: "&eClick to search."
 
-  confirmation-toggle:
-    name: "&b&lPurchase Confirmation"
-    enabled: "&aEnabled"
-    disabled: "&cDisabled"
-    enabled-description: "&eShows a confirmation before buying."
-    disabled-description: "&eItems are purchased instantly."
-    click: "&eClick to toggle."
+  # =======================================================
+  # MY AUCTIONS
+  # =======================================================
+
+  my-auctions:
+
+    name: "&d&lMy Auctions"
+
+    viewing-name: "&a&lMy Auctions"
+
+    viewing: "&aCurrently viewing"
+
+    your-auctions: "&aYour auctions."
+
+    description: "&7View items you are"
+
+    description-2: "&7currently selling."
+
+    open: "&eClick to open."
+
+    all: "&eClick to show all auctions."
+
+  # =======================================================
+  # PURCHASE CONFIRMATION
+  # =======================================================
 
   confirmation:
+
     title: "&5Confirm Purchase"
+
     confirm: "&a&lConfirm Purchase"
+
     confirm-lore: "&7Buy this item."
+
     cancel: "&c&lCancel"
+
     cancel-lore: "&7Cancel the purchase."
+
     item-title: "&e&lPurchase Confirmation"
+
     item: "&7Item: &f%item%"
+
     price: "&7Price: &a$%price%"
+
     question-1: "&eAre you sure you want"
+
     question-2: "&eto purchase this item?"
 
+  # =======================================================
+  # AUCTION ITEM
+  # =======================================================
+
   auction:
+
     seller: "&7Seller: &f%seller%"
+
     price: "&7Price: &a$%price%"
+
     buy: "&eClick to buy!"
+
     remove: "&cClick to remove this auction."
+
     id: "&8Auction #%id%"
 
 messages:
+
   no-longer-exists: "&cThis auction no longer exists."
+
   own-item: "&cYou cannot buy your own item."
+
   not-enough-money: "&cYou don't have enough money."
+
   inventory-full: "&cYour inventory is full."
+
   payment-failed: "&cPayment failed."
+
   seller-payment-failed: "&cCould not pay the seller."
+
   item-add-failed: "&cCould not add the item to your inventory."
+
   bought: "&aYou bought &f%item% &afor &f$%price%&a."
+
   sold: "&aYour item was sold for &f%price%&a."
+
   removed: "&aYour auction has been removed."
+
   returned: "&aYour item has been returned to your inventory."
+
   remove-failed: "&cThis auction could not be removed."
+
   no-permission: "&cYou don't have permission."
+
   invalid-price: "&cInvalid price."
+
   invalid-item: "&cHold an item in your hand."
+
   reload: "&aConfiguration reloaded."
