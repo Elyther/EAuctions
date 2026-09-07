@@ -266,7 +266,7 @@ public class AuctionGUI implements Listener {
             inventory.setItem(
                     47,
                     createItem(
-                            Material.ENDER_CHEST,
+                            Material.CHEST,
                             lang("gui.my-auctions.name"),
                             "",
                             lang("gui.my-auctions.description"),
