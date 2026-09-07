@@ -25,6 +25,9 @@ public class AuctionGUI implements Listener {
     private final String title =
             ChatColor.DARK_PURPLE + "EAuctions";
 
+    private final String confirmationTitle =
+            ChatColor.DARK_PURPLE + "Confirm Purchase";
+
     private static final int AUCTION_SLOTS = 45;
 
     private final Map<UUID, Integer> pages =
@@ -36,9 +39,11 @@ public class AuctionGUI implements Listener {
     private final Map<UUID, Boolean> myAuctions =
             new HashMap<>();
 
-    // =========================================================
-    // CONSTRUCTOR
-    // =========================================================
+    private final Map<UUID, Boolean> purchaseConfirmation =
+            new HashMap<>();
+
+    private final Map<UUID, Integer> pendingPurchases =
+            new HashMap<>();
 
     public AuctionGUI(EAuctions plugin) {
         this.plugin = plugin;
@@ -122,10 +127,6 @@ public class AuctionGUI implements Listener {
                         false
                 );
 
-        // =====================================================
-        // GET AUCTIONS
-        // =====================================================
-
         List<Auction> auctions;
 
         if (query.isEmpty()) {
@@ -146,10 +147,6 @@ public class AuctionGUI implements Listener {
                             );
         }
 
-        // =====================================================
-        // MY AUCTIONS
-        // =====================================================
-
         if (onlyMine) {
 
             List<Auction> mine =
@@ -167,20 +164,12 @@ public class AuctionGUI implements Listener {
             auctions = mine;
         }
 
-        // =====================================================
-        // INVENTORY
-        // =====================================================
-
         Inventory inventory =
                 Bukkit.createInventory(
                         null,
                         54,
                         title
                 );
-
-        // =====================================================
-        // AUCTION ITEMS
-        // =====================================================
 
         int page =
                 pages.getOrDefault(
@@ -234,9 +223,7 @@ public class AuctionGUI implements Listener {
                 lore.add("");
 
                 lore.add(
-                        color(
-                                "&8&m----------------"
-                        )
+                        color("&8&m----------------")
                 );
 
                 lore.add(
@@ -260,9 +247,7 @@ public class AuctionGUI implements Listener {
                 lore.add("");
 
                 lore.add(
-                        color(
-                                "&eClick to buy!"
-                        )
+                        color("&eClick to buy!")
                 );
 
                 lore.add(
@@ -306,7 +291,7 @@ public class AuctionGUI implements Listener {
         );
 
         // =====================================================
-        // PREVIOUS PAGE
+        // PREVIOUS
         // =====================================================
 
         if (page > 0) {
@@ -325,10 +310,7 @@ public class AuctionGUI implements Listener {
 
             inventory.setItem(
                     45,
-                    createItem(
-                            Material.GRAY_STAINED_GLASS_PANE,
-                            " "
-                    )
+                    glass
             );
         }
 
@@ -442,13 +424,64 @@ public class AuctionGUI implements Listener {
         );
 
         // =====================================================
-        // EMPTY SLOT
+        // PURCHASE CONFIRMATION
         // =====================================================
 
-        inventory.setItem(
-                51,
-                glass
-        );
+        boolean confirmation =
+                purchaseConfirmation.getOrDefault(
+                        uuid,
+                        getDefaultConfirmation()
+                );
+
+        String language =
+                getLanguage();
+
+        if (language.equals("tr")) {
+
+            inventory.setItem(
+                    51,
+                    createItem(
+                            confirmation
+                                    ? Material.LIME_DYE
+                                    : Material.GRAY_DYE,
+                            "&b&lSatın Alma Onayı",
+                            "",
+                            "&7Durum: " +
+                                    (confirmation
+                                            ? "&aAktif"
+                                            : "&cDevre Dışı"),
+                            "",
+                            confirmation
+                                    ? "&eSatın alırken onay ekranı açılır."
+                                    : "&eDirekt satın alınır.",
+                            "",
+                            "&eTıklayarak değiştir."
+                    )
+            );
+
+        } else {
+
+            inventory.setItem(
+                    51,
+                    createItem(
+                            confirmation
+                                    ? Material.LIME_DYE
+                                    : Material.GRAY_DYE,
+                            "&b&lPurchase Confirmation",
+                            "",
+                            "&7Status: " +
+                                    (confirmation
+                                            ? "&aEnabled"
+                                            : "&cDisabled"),
+                            "",
+                            confirmation
+                                    ? "&eShows a confirmation before buying."
+                                    : "&eItems are purchased instantly.",
+                            "",
+                            "&eClick to toggle."
+                    )
+            );
+        }
 
         // =====================================================
         // NEXT PAGE
@@ -470,16 +503,9 @@ public class AuctionGUI implements Listener {
 
             inventory.setItem(
                     53,
-                    createItem(
-                            Material.GRAY_STAINED_GLASS_PANE,
-                            " "
-                    )
+                    glass
             );
         }
-
-        // =====================================================
-        // OPEN
-        // =====================================================
 
         player.openInventory(
                 inventory
@@ -549,9 +575,87 @@ public class AuctionGUI implements Listener {
         Player player =
                 (Player) event.getWhoClicked();
 
-        if (!event.getView()
-                .getTitle()
-                .equals(title)) {
+        String clickedTitle =
+                event.getView().getTitle();
+
+        // =====================================================
+        // CONFIRMATION GUI
+        // =====================================================
+
+        if (clickedTitle.equals(
+                confirmationTitle
+        )) {
+
+            event.setCancelled(true);
+
+            if (event.getRawSlot() >=
+                    event.getView()
+                            .getTopInventory()
+                            .getSize()) {
+
+                return;
+            }
+
+            UUID uuid =
+                    player.getUniqueId();
+
+            Integer auctionId =
+                    pendingPurchases.get(uuid);
+
+            if (auctionId == null) {
+
+                player.closeInventory();
+
+                return;
+            }
+
+            int slot =
+                    event.getRawSlot();
+
+            // CONFIRM
+            if (slot == 11) {
+
+                pendingPurchases.remove(uuid);
+
+                Auction auction =
+                        plugin.getAuctionManager()
+                                .getAuction(
+                                        auctionId
+                                );
+
+                player.closeInventory();
+
+                if (auction != null) {
+
+                    buyDirect(
+                            player,
+                            auction
+                    );
+                }
+
+                return;
+            }
+
+            // CANCEL
+            if (slot == 15) {
+
+                pendingPurchases.remove(uuid);
+
+                player.closeInventory();
+
+                open(player);
+
+                return;
+            }
+
+            return;
+        }
+
+        // =====================================================
+        // NORMAL GUI
+        // =====================================================
+
+        if (!clickedTitle.equals(title)) {
 
             return;
         }
@@ -573,7 +677,7 @@ public class AuctionGUI implements Listener {
                 player.getUniqueId();
 
         // =====================================================
-        // PREVIOUS PAGE
+        // PREVIOUS
         // =====================================================
 
         if (slot == 45) {
@@ -602,7 +706,6 @@ public class AuctionGUI implements Listener {
         // =====================================================
 
         if (slot == 47) {
-
             return;
         }
 
@@ -683,10 +786,23 @@ public class AuctionGUI implements Listener {
         }
 
         // =====================================================
-        // EMPTY SLOT
+        // PURCHASE CONFIRMATION TOGGLE
         // =====================================================
 
         if (slot == 51) {
+
+            boolean current =
+                    purchaseConfirmation.getOrDefault(
+                            uuid,
+                            getDefaultConfirmation()
+                    );
+
+            purchaseConfirmation.put(
+                    uuid,
+                    !current
+            );
+
+            refresh(player);
 
             return;
         }
@@ -698,9 +814,7 @@ public class AuctionGUI implements Listener {
         if (slot == 53) {
 
             String query =
-                    getSearch(
-                            player
-                    );
+                    getSearch(player);
 
             List<Auction> auctions =
                     getCurrentAuctions(
@@ -741,9 +855,7 @@ public class AuctionGUI implements Listener {
                 slot < AUCTION_SLOTS) {
 
             String query =
-                    getSearch(
-                            player
-                    );
+                    getSearch(player);
 
             List<Auction> auctions =
                     getCurrentAuctions(
@@ -781,7 +893,348 @@ public class AuctionGUI implements Listener {
     }
 
     // =========================================================
-    // GET SEARCH
+    // BUY
+    // =========================================================
+
+    private void buy(
+            Player buyer,
+            Auction auction
+    ) {
+
+        boolean confirmation =
+                purchaseConfirmation.getOrDefault(
+                        buyer.getUniqueId(),
+                        getDefaultConfirmation()
+                );
+
+        if (confirmation) {
+
+            pendingPurchases.put(
+                    buyer.getUniqueId(),
+                    auction.getId()
+            );
+
+            openConfirmation(
+                    buyer,
+                    auction
+            );
+
+            return;
+        }
+
+        buyDirect(
+                buyer,
+                auction
+        );
+    }
+
+    // =========================================================
+    // CONFIRMATION GUI
+    // =========================================================
+
+    private void openConfirmation(
+            Player player,
+            Auction auction
+    ) {
+
+        Inventory inventory =
+                Bukkit.createInventory(
+                        null,
+                        27,
+                        confirmationTitle
+                );
+
+        String language =
+                getLanguage();
+
+        if (language.equals("tr")) {
+
+            inventory.setItem(
+                    11,
+                    createItem(
+                            Material.LIME_WOOL,
+                            "&a&lSatın Al",
+                            "",
+                            "&7Bu ürünü satın al."
+                    )
+            );
+
+            inventory.setItem(
+                    15,
+                    createItem(
+                            Material.RED_WOOL,
+                            "&c&lİptal",
+                            "",
+                            "&7Satın alma işlemini iptal et."
+                    )
+            );
+
+            inventory.setItem(
+                    13,
+                    createItem(
+                            auction.getItem().getType(),
+                            "&e&lSatın Alma Onayı",
+                            "",
+                            "&7Ürün: &f" +
+                                    auction.getItem()
+                                            .getType()
+                                            .name(),
+                            "&7Fiyat: &a$" +
+                                    plugin.formatMoney(
+                                            auction.getPrice()
+                                    ),
+                            "",
+                            "&eBu ürünü satın almak",
+                            "&eistediğinize emin misiniz?"
+                    )
+            );
+
+        } else {
+
+            inventory.setItem(
+                    11,
+                    createItem(
+                            Material.LIME_WOOL,
+                            "&a&lConfirm Purchase",
+                            "",
+                            "&7Buy this item."
+                    )
+            );
+
+            inventory.setItem(
+                    15,
+                    createItem(
+                            Material.RED_WOOL,
+                            "&c&lCancel",
+                            "",
+                            "&7Cancel the purchase."
+                    )
+            );
+
+            inventory.setItem(
+                    13,
+                    createItem(
+                            auction.getItem().getType(),
+                            "&e&lPurchase Confirmation",
+                            "",
+                            "&7Item: &f" +
+                                    auction.getItem()
+                                            .getType()
+                                            .name(),
+                            "&7Price: &a$" +
+                                    plugin.formatMoney(
+                                            auction.getPrice()
+                                    ),
+                            "",
+                            "&eAre you sure you want",
+                            "&eto purchase this item?"
+                    )
+            );
+        }
+
+        player.openInventory(
+                inventory
+        );
+    }
+
+    // =========================================================
+    // BUY DIRECT
+    // =========================================================
+
+    private void buyDirect(
+            Player buyer,
+            Auction auction
+    ) {
+
+        Auction current =
+                plugin.getAuctionManager()
+                        .getAuction(
+                                auction.getId()
+                        );
+
+        if (current == null) {
+
+            buyer.sendMessage(
+                    prefix() +
+                            color(
+                                    "&cThis auction no longer exists."
+                            )
+            );
+
+            refresh(buyer);
+
+            return;
+        }
+
+        if (current.getSeller()
+                .equals(
+                        buyer.getUniqueId()
+                )) {
+
+            buyer.sendMessage(
+                    prefix() +
+                            color(
+                                    "&cYou cannot buy your own item."
+                            )
+            );
+
+            return;
+        }
+
+        double price =
+                current.getPrice();
+
+        if (!plugin.getEconomy()
+                .has(
+                        buyer,
+                        price
+                )) {
+
+            buyer.sendMessage(
+                    prefix() +
+                            color(
+                                    "&cYou don't have enough money."
+                            )
+            );
+
+            return;
+        }
+
+        if (!hasInventorySpace(
+                buyer,
+                current.getItem()
+        )) {
+
+            buyer.sendMessage(
+                    prefix() +
+                            color(
+                                    "&cYour inventory is full."
+                            )
+            );
+
+            return;
+        }
+
+        OfflinePlayer seller =
+                Bukkit.getOfflinePlayer(
+                        current.getSeller()
+                );
+
+        if (!plugin.getEconomy()
+                .withdrawPlayer(
+                        buyer,
+                        price
+                )
+                .transactionSuccess()) {
+
+            buyer.sendMessage(
+                    prefix() +
+                            color(
+                                    "&cPayment failed."
+                            )
+            );
+
+            return;
+        }
+
+        if (!plugin.getEconomy()
+                .depositPlayer(
+                        seller,
+                        price
+                )
+                .transactionSuccess()) {
+
+            plugin.getEconomy()
+                    .depositPlayer(
+                            buyer,
+                            price
+                    );
+
+            buyer.sendMessage(
+                    prefix() +
+                            color(
+                                    "&cCould not pay the seller."
+                            )
+            );
+
+            return;
+        }
+
+        HashMap<Integer, ItemStack> leftover =
+                buyer.getInventory()
+                        .addItem(
+                                current.getItem().clone()
+                        );
+
+        if (!leftover.isEmpty()) {
+
+            plugin.getEconomy()
+                    .withdrawPlayer(
+                            seller,
+                            price
+                    );
+
+            plugin.getEconomy()
+                    .depositPlayer(
+                            buyer,
+                            price
+                    );
+
+            buyer.sendMessage(
+                    prefix() +
+                            color(
+                                    "&cCould not add the item to your inventory."
+                            )
+            );
+
+            return;
+        }
+
+        plugin.getAuctionManager()
+                .removeAuction(
+                        current.getId()
+                );
+
+        buyer.sendMessage(
+                prefix() +
+                        color(
+                                "&aYou bought &f" +
+                                        current.getItem()
+                                                .getType()
+                                                .name() +
+                                        " &afor &f$" +
+                                        plugin.formatMoney(
+                                                price
+                                        ) +
+                                        "&a."
+                        )
+        );
+
+        if (seller.isOnline()) {
+
+            Player sellerPlayer =
+                    seller.getPlayer();
+
+            if (sellerPlayer != null) {
+
+                sellerPlayer.sendMessage(
+                        prefix() +
+                                color(
+                                        "&aYour item was sold for &f$" +
+                                                plugin.formatMoney(
+                                                        price
+                                                ) +
+                                                "&a."
+                                )
+                );
+            }
+        }
+
+        refresh(buyer);
+    }
+
+    // =========================================================
+    // SEARCH
     // =========================================================
 
     private String getSearch(
@@ -806,7 +1259,7 @@ public class AuctionGUI implements Listener {
     }
 
     // =========================================================
-    // GET CURRENT AUCTIONS
+    // CURRENT AUCTIONS
     // =========================================================
 
     private List<Auction> getCurrentAuctions(
@@ -850,10 +1303,6 @@ public class AuctionGUI implements Listener {
                             );
         }
 
-        // =====================================================
-        // ONLY MY AUCTIONS
-        // =====================================================
-
         if (onlyMine) {
 
             List<Auction> mine =
@@ -883,9 +1332,7 @@ public class AuctionGUI implements Listener {
     ) {
 
         String query =
-                getSearch(
-                        player
-                );
+                getSearch(player);
 
         openGUI(
                 player,
@@ -920,243 +1367,6 @@ public class AuctionGUI implements Listener {
             default:
                 return SortType.NEWEST;
         }
-    }
-
-    // =========================================================
-    // BUY
-    // =========================================================
-
-    private void buy(
-            Player buyer,
-            Auction auction
-    ) {
-
-        Auction current =
-                plugin.getAuctionManager()
-                        .getAuction(
-                                auction.getId()
-                        );
-
-        if (current == null) {
-
-            buyer.sendMessage(
-                    prefix() +
-                            color(
-                                    "&cThis auction no longer exists."
-                            )
-            );
-
-            refresh(buyer);
-
-            return;
-        }
-
-        // =====================================================
-        // OWN ITEM
-        // =====================================================
-
-        if (current.getSeller()
-                .equals(
-                        buyer.getUniqueId()
-                )) {
-
-            buyer.sendMessage(
-                    prefix() +
-                            color(
-                                    "&cYou cannot buy your own item."
-                            )
-            );
-
-            return;
-        }
-
-        double price =
-                current.getPrice();
-
-        // =====================================================
-        // MONEY
-        // =====================================================
-
-        if (!plugin.getEconomy()
-                .has(
-                        buyer,
-                        price
-                )) {
-
-            buyer.sendMessage(
-                    prefix() +
-                            color(
-                                    "&cYou don't have enough money."
-                            )
-            );
-
-            return;
-        }
-
-        // =====================================================
-        // INVENTORY
-        // =====================================================
-
-        if (!hasInventorySpace(
-                buyer,
-                current.getItem()
-        )) {
-
-            buyer.sendMessage(
-                    prefix() +
-                            color(
-                                    "&cYour inventory is full."
-                            )
-            );
-
-            return;
-        }
-
-        OfflinePlayer seller =
-                Bukkit.getOfflinePlayer(
-                        current.getSeller()
-                );
-
-        // =====================================================
-        // WITHDRAW
-        // =====================================================
-
-        if (!plugin.getEconomy()
-                .withdrawPlayer(
-                        buyer,
-                        price
-                )
-                .transactionSuccess()) {
-
-            buyer.sendMessage(
-                    prefix() +
-                            color(
-                                    "&cPayment failed."
-                            )
-            );
-
-            return;
-        }
-
-        // =====================================================
-        // DEPOSIT
-        // =====================================================
-
-        if (!plugin.getEconomy()
-                .depositPlayer(
-                        seller,
-                        price
-                )
-                .transactionSuccess()) {
-
-            plugin.getEconomy()
-                    .depositPlayer(
-                            buyer,
-                            price
-                    );
-
-            buyer.sendMessage(
-                    prefix() +
-                            color(
-                                    "&cCould not pay the seller."
-                            )
-            );
-
-            return;
-        }
-
-        // =====================================================
-        // GIVE ITEM
-        // =====================================================
-
-        HashMap<Integer, ItemStack> leftover =
-                buyer.getInventory()
-                        .addItem(
-                                current.getItem().clone()
-                        );
-
-        // Safety: if something remains, refund buyer
-        if (!leftover.isEmpty()) {
-
-            plugin.getEconomy()
-                    .withdrawPlayer(
-                            seller,
-                            price
-                    );
-
-            plugin.getEconomy()
-                    .depositPlayer(
-                            buyer,
-                            price
-                    );
-
-            buyer.sendMessage(
-                    prefix() +
-                            color(
-                                    "&cCould not add the item to your inventory."
-                            )
-            );
-
-            return;
-        }
-
-        // =====================================================
-        // REMOVE AUCTION
-        // =====================================================
-
-        plugin.getAuctionManager()
-                .removeAuction(
-                        current.getId()
-                );
-
-        // =====================================================
-        // BUYER MESSAGE
-        // =====================================================
-
-        buyer.sendMessage(
-                prefix() +
-                        color(
-                                "&aYou bought &f" +
-                                        current.getItem()
-                                                .getType()
-                                                .name() +
-                                        " &afor &f$" +
-                                        plugin.formatMoney(
-                                                price
-                                        ) +
-                                        "&a."
-                        )
-        );
-
-        // =====================================================
-        // SELLER MESSAGE
-        // =====================================================
-
-        if (seller.isOnline()) {
-
-            Player sellerPlayer =
-                    seller.getPlayer();
-
-            if (sellerPlayer != null) {
-
-                sellerPlayer.sendMessage(
-                        prefix() +
-                                color(
-                                        "&aYour item was sold for &f$" +
-                                                plugin.formatMoney(
-                                                        price
-                                                ) +
-                                                "&a."
-                                )
-                );
-            }
-        }
-
-        // =====================================================
-        // REFRESH
-        // =====================================================
-
-        refresh(buyer);
     }
 
     // =========================================================
@@ -1272,6 +1482,33 @@ public class AuctionGUI implements Listener {
         }
 
         return item;
+    }
+
+    // =========================================================
+    // LANGUAGE
+    // =========================================================
+
+    private String getLanguage() {
+
+        return plugin.getConfig()
+                .getString(
+                        "language",
+                        "en"
+                )
+                .toLowerCase();
+    }
+
+    // =========================================================
+    // DEFAULT CONFIRMATION
+    // =========================================================
+
+    private boolean getDefaultConfirmation() {
+
+        return plugin.getConfig()
+                .getBoolean(
+                        "purchase-confirmation",
+                        true
+                );
     }
 
     // =========================================================
