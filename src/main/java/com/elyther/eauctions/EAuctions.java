@@ -2,8 +2,13 @@ package com.elyther.eauctions;
 
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.ChatColor;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.File;
+import java.io.IOException;
 
 public class EAuctions extends JavaPlugin {
 
@@ -12,10 +17,19 @@ public class EAuctions extends JavaPlugin {
     private AuctionGUI auctionGUI;
     private AuctionSearch auctionSearch;
 
+    private File langFile;
+    private FileConfiguration lang;
+
     @Override
     public void onEnable() {
 
         saveDefaultConfig();
+
+        // =====================================================
+        // LANGUAGE
+        // =====================================================
+
+        setupLang();
 
         // =====================================================
         // VAULT
@@ -127,12 +141,72 @@ public class EAuctions extends JavaPlugin {
         );
 
         getLogger().info(
+                "Language: lang.yml"
+        );
+
+        getLogger().info(
                 "Made by Elyther"
         );
 
         getLogger().info(
                 "================================"
         );
+    }
+
+    // =========================================================
+    // LANGUAGE FILE
+    // =========================================================
+
+    private void setupLang() {
+
+        langFile =
+                new File(
+                        getDataFolder(),
+                        "lang.yml"
+                );
+
+        if (!langFile.exists()) {
+
+            saveResource(
+                    "lang.yml",
+                    false
+            );
+        }
+
+        lang =
+                YamlConfiguration.loadConfiguration(
+                        langFile
+                );
+    }
+
+    public String lang(
+            String path
+    ) {
+
+        if (lang == null) {
+            return "";
+        }
+
+        String value =
+                lang.getString(
+                        path,
+                        path
+                );
+
+        return color(value);
+    }
+
+    public void reloadLang() {
+
+        if (langFile == null) {
+            setupLang();
+            return;
+        }
+
+        lang =
+                YamlConfiguration.loadConfiguration(
+                        langFile
+                );
     }
 
     // =========================================================
