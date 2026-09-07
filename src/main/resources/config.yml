@@ -24,14 +24,9 @@ auction:
 # PURCHASE CONFIRMATION
 # =========================================================
 
-# Language:
-# en = English
-# tr = Turkish
-
 language: en
 
-# Default state of Purchase Confirmation for players.
-# true  = Enabled
-# false = Disabled
+# true  = confirmation appears
+# false = direct purchase
 
 purchase-confirmation: true
