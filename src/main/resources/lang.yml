@@ -1,0 +1,12 @@
+prefix: "&d&lEAuctions &8» "
+
+messages:
+  no-permission: "&cYou don't have permission."
+  invalid-price: "&cInvalid price."
+  invalid-item: "&cHold an item in your hand."
+  reload: "&aConfiguration reloaded."
+
+  removed: "&aYour auction has been removed."
+  returned: "&aYour item has been returned to your inventory."
+  remove-failed: "&cThis auction could not be removed."
+  inventory-full: "&cYour inventory is full."
