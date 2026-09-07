@@ -19,3 +19,19 @@ auction:
   max-price: 1000000000000
 
   min-price: 1
+
+# =========================================================
+# PURCHASE CONFIRMATION
+# =========================================================
+
+# Language:
+# en = English
+# tr = Turkish
+
+language: en
+
+# Default state of Purchase Confirmation for players.
+# true  = Enabled
+# false = Disabled
+
+purchase-confirmation: true
