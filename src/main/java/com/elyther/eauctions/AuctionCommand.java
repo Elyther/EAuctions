@@ -1,6 +1,5 @@
 package com.elyther.eauctions;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -14,12 +13,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-public class AuctionCommand implements CommandExecutor, TabCompleter {
+public class AuctionCommand
+        implements CommandExecutor, TabCompleter {
 
     private final EAuctions plugin;
     private final AuctionGUI gui;
 
-    public AuctionCommand(EAuctions plugin, AuctionGUI gui) {
+    public AuctionCommand(
+            EAuctions plugin,
+            AuctionGUI gui
+    ) {
+
         this.plugin = plugin;
         this.gui = gui;
     }
@@ -36,34 +40,90 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
             String[] args
     ) {
 
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("Only players can use this command.");
+        if (!(sender instanceof Player)) {
+
+            sender.sendMessage(
+                    "Only players can use this command."
+            );
+
             return true;
         }
 
-        // /ah
+        Player player =
+                (Player) sender;
+
+        /*
+         * /ah
+         */
+
         if (args.length == 0) {
 
-            if (!player.hasPermission("eauctions.use")) {
-                send(player, "no-permission");
+            if (!player.hasPermission(
+                    "eauctions.use"
+            )) {
+
+                send(
+                        player,
+                        "no-permission"
+                );
+
                 return true;
             }
 
             gui.open(player);
+
             return true;
         }
 
         String first =
-                args[0].toLowerCase(Locale.ROOT);
+                args[0].toLowerCase(
+                        Locale.ROOT
+                );
 
-        // =====================================================
-        // /ah reload
-        // =====================================================
+        /*
+         * =====================================================
+         * /ah toggle
+         * =====================================================
+         */
+
+        if (first.equals("toggle")) {
+
+            if (!player.hasPermission(
+                    "eauctions.use"
+            )) {
+
+                send(
+                        player,
+                        "no-permission"
+                );
+
+                return true;
+            }
+
+            gui.togglePurchaseConfirmation(
+                    player
+            );
+
+            return true;
+        }
+
+        /*
+         * =====================================================
+         * /ah reload
+         * =====================================================
+         */
 
         if (first.equals("reload")) {
 
-            if (!player.hasPermission("eauctions.reload")) {
-                send(player, "no-permission");
+            if (!player.hasPermission(
+                    "eauctions.reload"
+            )) {
+
+                send(
+                        player,
+                        "no-permission"
+                );
+
                 return true;
             }
 
@@ -71,29 +131,40 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
 
             player.sendMessage(
                     color(
-                            plugin.getConfig().getString(
-                                    "messages.prefix",
-                                    "&d&lEAuctions &8» "
-                            )
-                            +
-                            plugin.getConfig().getString(
-                                    "messages.reload",
-                                    "&aConfiguration reloaded."
-                            )
+                            plugin.getConfig()
+                                    .getString(
+                                            "messages.prefix",
+                                            "&d&lEAuctions &8» "
+                                    )
+                                    +
+                                    plugin.getConfig()
+                                            .getString(
+                                                    "messages.reload",
+                                                    "&aConfiguration reloaded."
+                                            )
                     )
             );
 
             return true;
         }
 
-        // =====================================================
-        // /ah sell <price>
-        // =====================================================
+        /*
+         * =====================================================
+         * /ah sell <price>
+         * =====================================================
+         */
 
         if (first.equals("sell")) {
 
-            if (!player.hasPermission("eauctions.sell")) {
-                send(player, "no-permission");
+            if (!player.hasPermission(
+                    "eauctions.sell"
+            )) {
+
+                send(
+                        player,
+                        "no-permission"
+                );
+
                 return true;
             }
 
@@ -102,7 +173,8 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage(
                         color(
                                 "&d&lEAuctions &8» "
-                                        + "&7Usage: &f/ah sell <price>"
+                                        +
+                                        "&7Usage: &f/ah sell <price>"
                         )
                 );
 
@@ -116,90 +188,111 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
             }
 
             double price =
-                    plugin.parsePrice(args[1]);
+                    plugin.parsePrice(
+                            args[1]
+                    );
 
             if (price <= 0) {
 
-                send(player, "invalid-price");
+                send(
+                        player,
+                        "invalid-price"
+                );
+
                 return true;
             }
 
             ItemStack item =
-                    player.getInventory().getItemInMainHand();
+                    player.getInventory()
+                            .getItemInMainHand();
 
-            // Empty hand
-            if (item.getType() == Material.AIR) {
+            if (item.getType() ==
+                    Material.AIR) {
 
-                send(player, "invalid-item");
+                send(
+                        player,
+                        "invalid-item"
+                );
+
                 return true;
             }
 
-            // Add auction
-            plugin.getAuctionManager().addAuction(
-                    player.getUniqueId(),
-                    item,
-                    price
-            );
+            plugin.getAuctionManager()
+                    .addAuction(
+                            player.getUniqueId(),
+                            item,
+                            price
+                    );
 
-            // Remove item from player's hand
-            player.getInventory().setItemInMainHand(null);
+            player.getInventory()
+                    .setItemInMainHand(
+                            null
+                    );
 
             String formattedPrice =
-                    plugin.formatMoney(price);
+                    plugin.formatMoney(
+                            price
+                    );
 
             String message =
-                    plugin.getConfig().getString(
-                            "messages.sold",
-                            "&aYour item has been listed for &f%price%&a."
-                    );
+                    plugin.getConfig()
+                            .getString(
+                                    "messages.sold",
+                                    "&aYour item has been listed for &f%price%&a."
+                            );
 
             message =
                     message.replace(
                             "%price%",
-                            plugin.getConfig().getString(
-                                    "auction.currency-symbol",
-                                    "$"
-                            ) + formattedPrice
+                            plugin.getConfig()
+                                    .getString(
+                                            "auction.currency-symbol",
+                                            "$"
+                                    )
+                                    +
+                                    formattedPrice
                     );
 
             message =
                     message.replace(
                             "%amount%",
-                            String.valueOf(item.getAmount())
+                            String.valueOf(
+                                    item.getAmount()
+                            )
                     );
 
             player.sendMessage(
                     color(
-                            plugin.getConfig().getString(
-                                    "messages.prefix",
-                                    "&d&lEAuctions &8» "
-                            )
-                            + message
+                            plugin.getConfig()
+                                    .getString(
+                                            "messages.prefix",
+                                            "&d&lEAuctions &8» "
+                                    )
+                                    +
+                                    message
                     )
             );
 
             return true;
         }
 
-        // =====================================================
-        // /ah <item>
-        // =====================================================
+        /*
+         * =====================================================
+         * /ah <item>
+         * =====================================================
+         */
 
-        if (!player.hasPermission("eauctions.use")) {
-            send(player, "no-permission");
+        if (!player.hasPermission(
+                "eauctions.use"
+        )) {
+
+            send(
+                    player,
+                    "no-permission"
+            );
+
             return true;
         }
-
-        /*
-         * Everything that is not a special command
-         * is treated as an item search.
-         *
-         * Example:
-         *
-         * /ah diamond
-         * /ah diamond_sword
-         * /ah netherite
-         */
 
         StringBuilder search =
                 new StringBuilder();
@@ -233,33 +326,43 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
             String[] args
     ) {
 
-        if (!(sender instanceof Player player)) {
+        if (!(sender instanceof Player)) {
             return Collections.emptyList();
         }
 
-        // /ah <TAB>
+        Player player =
+                (Player) sender;
+
+        /*
+         * /ah <TAB>
+         */
+
         if (args.length == 1) {
 
             List<String> suggestions =
                     new ArrayList<>();
 
-            if (player.hasPermission("eauctions.sell")) {
-                suggestions.add("sell");
+            suggestions.add(
+                    "toggle"
+            );
+
+            if (player.hasPermission(
+                    "eauctions.sell"
+            )) {
+
+                suggestions.add(
+                        "sell"
+                );
             }
 
-            /*
-             * Reload is only visible to players
-             * with the reload permission.
-             */
+            if (player.hasPermission(
+                    "eauctions.reload"
+            )) {
 
-            if (player.hasPermission("eauctions.reload")) {
-                suggestions.add("reload");
+                suggestions.add(
+                        "reload"
+                );
             }
-
-            /*
-             * Add currently available item names
-             * to TAB completion.
-             */
 
             for (Material material :
                     Material.values()) {
@@ -269,15 +372,23 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
                 }
 
                 String name =
-                        material.name().toLowerCase(Locale.ROOT);
+                        material.name()
+                                .toLowerCase(
+                                        Locale.ROOT
+                                );
 
-                if (!suggestions.contains(name)) {
+                if (!suggestions.contains(
+                        name
+                )) {
+
                     suggestions.add(name);
                 }
             }
 
             String input =
-                    args[0].toLowerCase(Locale.ROOT);
+                    args[0].toLowerCase(
+                            Locale.ROOT
+                    );
 
             List<String> result =
                     new ArrayList<>();
@@ -285,8 +396,13 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
             for (String suggestion :
                     suggestions) {
 
-                if (suggestion.startsWith(input)) {
-                    result.add(suggestion);
+                if (suggestion.startsWith(
+                        input
+                )) {
+
+                    result.add(
+                            suggestion
+                    );
                 }
             }
 
@@ -295,11 +411,19 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
             return result;
         }
 
-        // /ah sell <TAB>
-        if (args.length == 2 &&
-                args[0].equalsIgnoreCase("sell")) {
+        /*
+         * /ah sell <TAB>
+         */
 
-            if (!player.hasPermission("eauctions.sell")) {
+        if (args.length == 2 &&
+                args[0].equalsIgnoreCase(
+                        "sell"
+                )) {
+
+            if (!player.hasPermission(
+                    "eauctions.sell"
+            )) {
+
                 return Collections.emptyList();
             }
 
@@ -322,7 +446,7 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
     }
 
     // =========================================================
-    // SEND CONFIG MESSAGE
+    // SEND
     // =========================================================
 
     private void send(
@@ -331,19 +455,23 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
     ) {
 
         String prefix =
-                plugin.getConfig().getString(
-                        "messages.prefix",
-                        "&d&lEAuctions &8» "
-                );
+                plugin.getConfig()
+                        .getString(
+                                "messages.prefix",
+                                "&d&lEAuctions &8» "
+                        );
 
         String message =
-                plugin.getConfig().getString(
-                        "messages." + path,
-                        "&cSomething went wrong."
-                );
+                plugin.getConfig()
+                        .getString(
+                                "messages." + path,
+                                "&cSomething went wrong."
+                        );
 
         player.sendMessage(
-                color(prefix + message)
+                color(
+                        prefix + message
+                )
         );
     }
 
@@ -351,7 +479,9 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
     // COLOR
     // =========================================================
 
-    private String color(String text) {
+    private String color(
+            String text
+    ) {
 
         if (text == null) {
             return "";
