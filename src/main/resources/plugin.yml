@@ -10,14 +10,16 @@ depend:
   - Vault
 
 commands:
+
   ah:
     description: Open the Auction House
-    usage: /ah [item|sell|reload]
+    usage: /ah [item|sell|reload|toggle]
     aliases:
       - auction
       - auctions
 
 permissions:
+
   eauctions.use:
     description: Use Auction House
     default: true
