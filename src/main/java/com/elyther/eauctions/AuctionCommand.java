@@ -217,6 +217,27 @@ public class AuctionCommand
                 return true;
             }
 
+            // =========================================================
+            // LUCKPERMS LİMİT YOXLANIŞI
+            // =========================================================
+            int maxLimit = getPlayerMaxAuctions(player);
+            
+            // Oyunçunun hal-hazırda hərracda olan əşyalarının sayını tapırıq
+            List<Auction> currentAuctions = plugin.getAuctionManager().getPlayerAuctions(player.getUniqueId());
+            int currentCount = currentAuctions.size();
+
+            // Əgər qoyduğu əşya sayı limitə çatıbsa, blokla
+            if (currentCount >= maxLimit) {
+                player.sendMessage(
+                        color(
+                                plugin.getConfig().getString("messages.prefix", "&d&lEAuctions &8» ") +
+                                "&cSiz hərraca maksimum &f" + maxLimit + " &cəşya qoya bilərsiniz!"
+                        )
+                );
+                return true; // Əşyanı əlavə etmədən əməliyyatı dayandır
+            }
+            // =========================================================
+
             plugin.getAuctionManager()
                     .addAuction(
                             player.getUniqueId(),
@@ -446,6 +467,22 @@ public class AuctionCommand
     }
 
     // =========================================================
+    // LIMIT CHECK (YENİ ƏLAVƏ EDİLDİ)
+    // =========================================================
+
+    private int getPlayerMaxAuctions(Player player) {
+        // İcazələri yuxarıdan aşağıya doğru yoxlayırıq. (Əvvəlcə ən böyük rəqəm)
+        if (player.hasPermission("eauctions.limit.30")) {
+            return 30;
+        } else if (player.hasPermission("eauctions.limit.10")) {
+            return 10;
+        }
+        
+        // Heç bir icazəsi yoxdursa standart rəqəm: 5
+        return 5; 
+    }
+
+    // =========================================================
     // SEND
     // =========================================================
 
@@ -489,4 +526,4 @@ public class AuctionCommand
 
         return plugin.color(text);
     }
-}
+        }
