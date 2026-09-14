@@ -1,3 +1,4 @@
+java
 package com.elyther.eauctions;
 
 import org.bukkit.Material;
@@ -29,7 +30,7 @@ public class AuctionCommand
     }
 
     // =========================================================
-    // COMMAND
+    // KOMUT
     // =========================================================
 
     @Override
@@ -43,7 +44,7 @@ public class AuctionCommand
         if (!(sender instanceof Player)) {
 
             sender.sendMessage(
-                    "Only players can use this command."
+                    "Bu komutu yalnızca oyuncular kullanabilir."
             );
 
             return true;
@@ -140,7 +141,7 @@ public class AuctionCommand
                                     plugin.getConfig()
                                             .getString(
                                                     "messages.reload",
-                                                    "&aConfiguration reloaded."
+                                                    "&aYapılandırma yeniden yüklendi."
                                             )
                     )
             );
@@ -174,13 +175,13 @@ public class AuctionCommand
                         color(
                                 "&d&lEAuctions &8» "
                                         +
-                                        "&7Usage: &f/ah sell <price>"
+                                        "&7Kullanım: &f/ah sell <fiyat>"
                         )
                 );
 
                 player.sendMessage(
                         color(
-                                "&7Examples: &f5k &7| &f2.5k &7| &f1m &7| &f1.5m &7| &f1b"
+                                "&7Örnekler: &f5k &7| &f2.5k &7| &f1m &7| &f1.5m &7| &f1b"
                         )
                 );
 
@@ -218,24 +219,42 @@ public class AuctionCommand
             }
 
             // =========================================================
-            // LUCKPERMS LİMİT YOXLANIŞI
+            // LUCKPERMS LİMİT KONTROLÜ
             // =========================================================
-            int maxLimit = getPlayerMaxAuctions(player);
-            
-            // Oyunçunun hal-hazırda hərracda olan əşyalarının sayını tapırıq
-            List<Auction> currentAuctions = plugin.getAuctionManager().getPlayerAuctions(player.getUniqueId());
-            int currentCount = currentAuctions.size();
 
-            // Əgər qoyduğu əşya sayı limitə çatıbsa, blokla
+            int maxLimit =
+                    getPlayerMaxAuctions(player);
+
+            // Oyuncunun şu anda açık artırmada bulunan eşyalarının sayısını buluyoruz
+            List<Auction> currentAuctions =
+                    plugin.getAuctionManager()
+                            .getPlayerAuctions(
+                                    player.getUniqueId()
+                            );
+
+            int currentCount =
+                    currentAuctions.size();
+
+            // Oyuncunun eşya sayısı limite ulaştıysa işlemi engelle
             if (currentCount >= maxLimit) {
+
                 player.sendMessage(
                         color(
-                                plugin.getConfig().getString("messages.prefix", "&d&lEAuctions &8» ") +
-                                "&cSiz hərraca maksimum &f" + maxLimit + " &cəşya qoya bilərsiniz!"
+                                plugin.getConfig()
+                                        .getString(
+                                                "messages.prefix",
+                                                "&d&lEAuctions &8» "
+                                        )
+                                        +
+                                        "&cAçık artırmaya en fazla &f"
+                                        + maxLimit
+                                        + " &ceşya koyabilirsiniz!"
                         )
                 );
-                return true; // Əşyanı əlavə etmədən əməliyyatı dayandır
+
+                return true;
             }
+
             // =========================================================
 
             plugin.getAuctionManager()
@@ -259,7 +278,7 @@ public class AuctionCommand
                     plugin.getConfig()
                             .getString(
                                     "messages.sold",
-                                    "&aYour item has been listed for &f%price%&a."
+                                    "&aEşyanız &f%price%&a fiyatına satışa çıkarıldı."
                             );
 
             message =
@@ -336,7 +355,7 @@ public class AuctionCommand
     }
 
     // =========================================================
-    // TAB COMPLETE
+    // TAB TAMAMLAMA
     // =========================================================
 
     @Override
@@ -467,23 +486,31 @@ public class AuctionCommand
     }
 
     // =========================================================
-    // LIMIT CHECK (YENİ ƏLAVƏ EDİLDİ)
+    // LİMİT KONTROLÜ
     // =========================================================
 
     private int getPlayerMaxAuctions(Player player) {
-        // İcazələri yuxarıdan aşağıya doğru yoxlayırıq. (Əvvəlcə ən böyük rəqəm)
-        if (player.hasPermission("eauctions.limit.30")) {
+
+        // İzinleri büyükten küçüğe doğru kontrol ediyoruz.
+        if (player.hasPermission(
+                "eauctions.limit.30"
+        )) {
+
             return 30;
-        } else if (player.hasPermission("eauctions.limit.10")) {
+
+        } else if (player.hasPermission(
+                "eauctions.limit.10"
+        )) {
+
             return 10;
         }
-        
-        // Heç bir icazəsi yoxdursa standart rəqəm: 5
-        return 5; 
+
+        // Hiçbir izin yoksa varsayılan limit: 5
+        return 5;
     }
 
     // =========================================================
-    // SEND
+    // MESAJ GÖNDER
     // =========================================================
 
     private void send(
@@ -502,7 +529,7 @@ public class AuctionCommand
                 plugin.getConfig()
                         .getString(
                                 "messages." + path,
-                                "&cSomething went wrong."
+                                "&cBir şeyler yanlış gitti."
                         );
 
         player.sendMessage(
@@ -513,7 +540,7 @@ public class AuctionCommand
     }
 
     // =========================================================
-    // COLOR
+    // RENK
     // =========================================================
 
     private String color(
@@ -526,4 +553,5 @@ public class AuctionCommand
 
         return plugin.color(text);
     }
-        }
+}
+
