@@ -1,4 +1,3 @@
-java
 package com.elyther.eauctions;
 
 import org.bukkit.Material;
