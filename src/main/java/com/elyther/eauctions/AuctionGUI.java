@@ -80,7 +80,7 @@ public class AuctionGUI implements Listener {
     // MAIN GUI
     // =========================================================
 
-    private void openGUI(Player player, String search) {
+    public void openGUI(Player player, String search) {
 
         UUID uuid = player.getUniqueId();
 
