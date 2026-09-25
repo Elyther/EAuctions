@@ -365,6 +365,21 @@ public class AuctionGUI implements Listener {
                 )
         );
 
+         // =====================================================
+         // FAVORİLER - SLOT 52
+         // =====================================================
+
+          inventory.setItem(
+                  52,
+                  createItem(
+                          Material.NETHER_STAR,
+                "&e⭐ Favoriler",
+                "",
+                "&7Favori itemlerinizi yönetin.",
+                "",
+                "&eTıklamak için basın."
+             )
+       );
         // =====================================================
         // NEXT - SLOT 53
         // =====================================================
