@@ -262,6 +262,12 @@ public class AuctionCommand
                             item,
                             price
                     );
+           player.playSound(
+        player.getLocation(),
+        org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP,
+        1f,
+        1.2f
+);
 
             player.getInventory()
                     .setItemInMainHand(
