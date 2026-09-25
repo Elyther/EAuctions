@@ -1220,14 +1220,15 @@ public class FavoriteGUI implements Listener {
             if (meta != null) {
 
                 meta.setDisplayName(
-                        color(
-                                "&d"
-                                        + getEnchantmentName(
-                                        enchantment
-                                )
-                                        + " &f"
-                                        + roman(level)
-                );
+        color(
+                "&d"
+                        + getEnchantmentName(
+                        enchantment
+                )
+                        + " &f"
+                        + roman(level)
+        )
+);
 
                 List<String> lore =
                         new ArrayList<>();
