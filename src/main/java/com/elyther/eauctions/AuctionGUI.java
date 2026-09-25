@@ -162,16 +162,13 @@ public class AuctionGUI implements Listener {
                 );
 
                 lore.add(
-                        color(
-                                lang("gui.auction.price")
-                                        .replace(
-                                                "%price%",
-                                                plugin.formatMoney(
-                                                        auction.getPrice()
-                                                )
-                                        )
+        color(
+                "&a$" +
+                        plugin.formatMoney(
+                                auction.getPrice()
                         )
-                );
+        )
+);
 
                 lore.add("");
 
