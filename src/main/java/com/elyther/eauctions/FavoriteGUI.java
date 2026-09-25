@@ -59,12 +59,12 @@ public class FavoriteGUI implements Listener {
     private final DecimalFormat moneyFormat =
             new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.US));
 
-    public FavoriteGUI(EAuctions plugin) {
-        this.plugin = plugin;
-        this.favoriteManager = plugin.getFavoriteManager();
+    public FavoriteGUI(EAuctions plugin, FavoriteManager favoriteManager) {
+    this.plugin = plugin;
+    this.favoriteManager = favoriteManager;
 
-        Bukkit.getPluginManager().registerEvents(this, plugin);
-    }
+    Bukkit.getPluginManager().registerEvents(this, plugin);
+      }
 
     /* =========================================================
        ANA FAVORİ MENÜSÜ
