@@ -2011,7 +2011,7 @@ public class FavoriteGUI implements Listener {
     }
 
     private boolean isFavoritesInventory(
-            org.bukkit.event.inventory.InventoryView view
+            org.bukkit.inventory.InventoryView view
     ) {
 
         return view != null
