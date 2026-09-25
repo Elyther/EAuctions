@@ -1218,6 +1218,27 @@ public class AuctionGUI implements Listener {
         }
 
         // =====================================================
+// FAVORİLER
+// =====================================================
+
+if (slot == 52) {
+
+    if (plugin.getFavoriteGUI() != null) {
+
+        player.playSound(
+                player.getLocation(),
+                org.bukkit.Sound.UI_BUTTON_CLICK,
+                1f,
+                1f
+        );
+
+        plugin.getFavoriteGUI()
+                .openFavorites(player);
+    }
+
+    return;
+}
+        // =====================================================
         // NEXT
         // =====================================================
 
