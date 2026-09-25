@@ -101,7 +101,7 @@ public class FavoriteGUI implements Listener {
         refreshTasks.put(player.getUniqueId(), task);
     }
 
-    private void openFavorites(Player player) {
+    public void openFavorites(Player player) {
         Inventory inventory = Bukkit.createInventory(
                 null,
                 54,
