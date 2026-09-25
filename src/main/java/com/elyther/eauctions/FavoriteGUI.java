@@ -2,330 +2,299 @@ package com.elyther.eauctions;
 
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.scheduler.BukkitTask;
 
-import java.util.*;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public class FavoriteGUI implements Listener {
 
-    private final EAuctions plugin;
-    private final FavoriteManager favoriteManager;
-
-    private final Map<UUID, Integer> itemPages = new HashMap<>();
-    private final Map<UUID, Integer> selectedFavoriteSlots = new HashMap<>();
-    private final Map<UUID, ItemStack> pendingItems = new HashMap<>();
-    private final Map<UUID, Enchantment> pendingEnchantments = new HashMap<>();
+    private static final String FAVORITES_TITLE = color("&8⭐ Favoriler");
+    private static final String ITEM_SELECT_TITLE = color("&8⭐ Favori Eşya Seç");
+    private static final String ENCHANT_SELECT_TITLE = color("&8⭐ Büyü Seç");
+    private static final String ENCHANT_LEVEL_TITLE = color("&8⭐ Büyü Seviyesi");
 
     private static final int[] FAVORITE_SLOTS = {
             10, 11, 12, 13, 14, 15, 16, 17, 18
     };
 
-    private static final int[] ITEM_SLOTS = {
-            0, 1, 2, 3, 4, 5, 6, 7, 8,
-            9, 10, 11, 12, 13, 14, 15, 16, 17,
-            18, 19, 20, 21, 22, 23, 24, 25, 26,
-            27, 28, 29, 30, 31, 32, 33, 34, 35,
-            36, 37, 38, 39, 40, 41, 42, 43, 44
-    };
+    private static final int ITEMS_PER_PAGE = 45;
 
-    public FavoriteGUI(
-            EAuctions plugin,
-            FavoriteManager favoriteManager
-    ) {
+    private final EAuctions plugin;
+    private final FavoriteManager favoriteManager;
+
+    private final Map<UUID, Integer> itemPages = new HashMap<>();
+    private final Map<UUID, Integer> enchantPages = new HashMap<>();
+
+    private final Map<UUID, Integer> selectedFavoriteSlots = new HashMap<>();
+    private final Map<UUID, ItemStack> pendingItems = new HashMap<>();
+    private final Map<UUID, Map<Enchantment, Integer>> pendingEnchantments = new HashMap<>();
+
+    private final Map<UUID, BukkitTask> refreshTasks = new HashMap<>();
+
+    private final DecimalFormat moneyFormat =
+            new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.US));
+
+    public FavoriteGUI(EAuctions plugin) {
         this.plugin = plugin;
-        this.favoriteManager = favoriteManager;
+        this.favoriteManager = plugin.getFavoriteManager();
+
+        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    // =========================================================
-    // FAVORİ ANA MENÜ
-    // =========================================================
+    /* =========================================================
+       ANA FAVORİ MENÜSÜ
+       ========================================================= */
 
-    public void openFavorites(Player player) {
-
-        Inventory inventory = Bukkit.createInventory(
-                null,
-                54,
-                plugin.color("&8⭐ Favoriler")
-        );
-
-        fillBackground(inventory);
-
-        for (int i = 0; i < FAVORITE_SLOTS.length; i++) {
-
-            int favoriteSlot = i;
-
-            ItemStack favorite =
-                    favoriteManager.getFavorite(
-                            player.getUniqueId(),
-                            favoriteSlot
-                    );
-
-            if (favorite == null ||
-                    favorite.getType().isAir()) {
-
-                inventory.setItem(
-                        FAVORITE_SLOTS[i],
-                        createItem(
-                                Material.GRAY_STAINED_GLASS_PANE,
-                                "&7Boş Favori",
-                                "",
-                                "&7Favori eklemek için tıklayın."
-                        )
-                );
-
-                continue;
-            }
-
-            ItemStack display = favorite.clone();
-            display.setAmount(1);
-
-            ItemMeta meta = display.getItemMeta();
-
-            List<String> lore = new ArrayList<>();
-
-            if (meta != null && meta.hasLore() && meta.getLore() != null) {
-                lore.addAll(meta.getLore());
-            }
-
-            lore.add("");
-            lore.add(plugin.color("&8──────────────"));
-
-            Auction cheapest =
-                    getCheapestAuction(
-                            favorite
-                    );
-
-            if (cheapest == null) {
-
-                lore.add(
-                        plugin.color(
-                                "&cŞu anda satışta yok."
-                        )
-                );
-
-            } else {
-
-                lore.add(
-                        plugin.color(
-                                "&aEn ucuz: &f$" +
-                                        plugin.formatMoney(
-                                                cheapest.getPrice()
-                                        )
-                        )
-                );
-
-                lore.add("");
-                lore.add(
-                        plugin.color(
-                                "&aSol Tık &7→ Satın Al"
-                        )
-                );
-            }
-
-            lore.add(
-                    plugin.color(
-                            "&cSağ Tık &7→ Favoriden Sil"
-                    )
-            );
-
-            if (meta != null) {
-                meta.setLore(lore);
-                display.setItemMeta(meta);
-            }
-
-            inventory.setItem(
-                    FAVORITE_SLOTS[i],
-                    display
-            );
+    public void open(Player player) {
+        if (player == null || !player.isOnline()) {
+            return;
         }
 
-        inventory.setItem(
-                49,
-                createItem(
-                        Material.ARROW,
-                        "&cGeri",
-                        "",
-                        "&7Auction House'a dön."
-                )
-        );
+        stopRefresh(player);
 
-        player.openInventory(inventory);
+        openFavorites(player);
 
-        // 1 saniyede bir sessiz refresh
-        startPriceUpdater(player);
-    }
-
-    // =========================================================
-    // FİYAT REFRESH
-    // =========================================================
-
-    private void startPriceUpdater(Player player) {
-
-        UUID uuid = player.getUniqueId();
-
-        Bukkit.getScheduler().runTaskLater(
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(
                 plugin,
                 () -> {
-
                     if (!player.isOnline()) {
+                        stopRefresh(player);
                         return;
                     }
 
-                    if (!player.getOpenInventory()
-                            .getTitle()
-                            .equals(
-                                    plugin.color("&8⭐ Favoriler")
-                            )) {
-
+                    if (!isFavoritesInventory(player.getOpenInventory())) {
+                        stopRefresh(player);
                         return;
                     }
 
                     updateFavoritePrices(player);
-
-                    startPriceUpdater(player);
-
                 },
+                20L,
                 20L
         );
+
+        refreshTasks.put(player.getUniqueId(), task);
     }
 
-    private void updateFavoritePrices(Player player) {
+    private void openFavorites(Player player) {
+        Inventory inventory = Bukkit.createInventory(
+                null,
+                54,
+                FAVORITES_TITLE
+        );
 
-        Inventory inventory =
-                player.getOpenInventory()
-                        .getTopInventory();
+        fillBackground(inventory);
+
+        List<ItemStack> favorites =
+                favoriteManager.getFavorites(player.getUniqueId());
 
         for (int i = 0; i < FAVORITE_SLOTS.length; i++) {
+            int slot = FAVORITE_SLOTS[i];
 
-            ItemStack favorite =
-                    favoriteManager.getFavorite(
-                            player.getUniqueId(),
-                            i
-                    );
+            ItemStack favorite = null;
 
-            if (favorite == null ||
-                    favorite.getType().isAir()) {
-                continue;
+            if (i < favorites.size()) {
+                favorite = favorites.get(i);
             }
 
-            ItemStack display = favorite.clone();
-            display.setAmount(1);
-
-            Auction cheapest =
-                    getCheapestAuction(
-                            favorite
-                    );
-
-            ItemMeta meta =
-                    display.getItemMeta();
-
-            if (meta == null) {
-                continue;
+            if (favorite == null || favorite.getType().isAir()) {
+                inventory.setItem(slot, createEmptyFavorite(i + 1));
+            } else {
+                inventory.setItem(
+                        slot,
+                        createFavoriteDisplay(
+                                favorite,
+                                i
+                        )
+                );
             }
+        }
+
+        inventory.setItem(
+                45,
+                item(
+                        Material.ARROW,
+                        "&e← Geri",
+                        "&7Müzayede menüsüne dön."
+                )
+        );
+
+        inventory.setItem(
+                49,
+                item(
+                        Material.BARRIER,
+                        "&cKapat",
+                        "&7Menüyü kapat."
+                )
+        );
+
+        inventory.setItem(
+                53,
+                item(
+                        Material.NETHER_STAR,
+                        "&bFavoriler",
+                        "&7Favori eşyalarınız burada."
+                )
+        );
+
+        player.openInventory(inventory);
+    }
+
+    /* =========================================================
+       FAVORİ GÖRÜNÜMÜ
+       ========================================================= */
+
+    private ItemStack createFavoriteDisplay(ItemStack favorite, int favoriteIndex) {
+
+        ItemStack display = favorite.clone();
+
+        ItemMeta meta = display.getItemMeta();
+
+        if (meta == null) {
+            return display;
+        }
+
+        List<String> lore = new ArrayList<>();
+
+        lore.add("");
+        lore.add(color("&7Favori: &f#" + (favoriteIndex + 1)));
+        lore.add("");
+
+        Auction cheapest = getCheapestAuction(favorite);
+
+        if (cheapest == null) {
+            lore.add(color("&cŞu anda satışta yok."));
+        } else {
+            lore.add(
+                    color("&aEn ucuz fiyat: &f$" + formatMoney(cheapest.getPrice()))
+            );
+
+            lore.add("");
+            lore.add(color("&eSol tık &7→ En ucuzu satın al"));
+        }
+
+        lore.add(color("&cSağ tık &7→ Favoriden kaldır"));
+
+        meta.setLore(lore);
+        display.setItemMeta(meta);
+
+        return display;
+    }
+
+    private ItemStack createEmptyFavorite(int number) {
+
+        ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+
+        ItemMeta meta = item.getItemMeta();
+
+        if (meta != null) {
+            meta.setDisplayName(
+                    color("&7Favori #" + number)
+            );
 
             List<String> lore = new ArrayList<>();
 
-            if (meta.hasLore() &&
-                    meta.getLore() != null) {
-
-                for (String line :
-                        meta.getLore()) {
-
-                    if (line.contains("En ucuz:") ||
-                            line.contains("Şu anda satışta") ||
-                            line.contains("Sol Tık") ||
-                            line.contains("Sağ Tık") ||
-                            line.contains("────────")) {
-
-                        continue;
-                    }
-
-                    lore.add(line);
-                }
-            }
-
             lore.add("");
-            lore.add(
-                    plugin.color(
-                            "&8──────────────"
-                    )
-            );
-
-            if (cheapest == null) {
-
-                lore.add(
-                        plugin.color(
-                                "&cŞu anda satışta yok."
-                        )
-                );
-
-            } else {
-
-                lore.add(
-                        plugin.color(
-                                "&aEn ucuz: &f$" +
-                                        plugin.formatMoney(
-                                                cheapest.getPrice()
-                                        )
-                        )
-                );
-
-                lore.add("");
-                lore.add(
-                        plugin.color(
-                                "&aSol Tık &7→ Satın Al"
-                        )
-                );
-            }
-
-            lore.add(
-                    plugin.color(
-                            "&cSağ Tık &7→ Favoriden Sil"
-                    )
-            );
+            lore.add(color("&eTıkla &7→ Favori eşya seç"));
+            lore.add("");
+            lore.add(color("&8Buraya istediğin eşyayı"));
+            lore.add(color("&8favori olarak ekleyebilirsin."));
 
             meta.setLore(lore);
-            display.setItemMeta(meta);
+
+            item.setItemMeta(meta);
+        }
+
+        return item;
+    }
+
+    /* =========================================================
+       FİYAT GÜNCELLEME
+       ========================================================= */
+
+    private void updateFavoritePrices(Player player) {
+
+        Inventory inventory = player.getOpenInventory().getTopInventory();
+
+        if (!isFavoritesInventory(player.getOpenInventory())) {
+            return;
+        }
+
+        List<ItemStack> favorites =
+                favoriteManager.getFavorites(player.getUniqueId());
+
+        for (int i = 0; i < FAVORITE_SLOTS.length; i++) {
+
+            int slot = FAVORITE_SLOTS[i];
+
+            ItemStack favorite =
+                    i < favorites.size()
+                            ? favorites.get(i)
+                            : null;
+
+            if (favorite == null || favorite.getType().isAir()) {
+                inventory.setItem(
+                        slot,
+                        createEmptyFavorite(i + 1)
+                );
+                continue;
+            }
 
             inventory.setItem(
-                    FAVORITE_SLOTS[i],
-                    display
+                    slot,
+                    createFavoriteDisplay(
+                            favorite,
+                            i
+                    )
             );
         }
     }
 
-    // =========================================================
-    // EN UCUZ AUKSİYON
-    // =========================================================
+    /* =========================================================
+       EN UCUZ İLAN
+       ========================================================= */
 
-    private Auction getCheapestAuction(
-            ItemStack favorite
-    ) {
+    private Auction getCheapestAuction(ItemStack favorite) {
+
+        if (favorite == null || favorite.getType().isAir()) {
+            return null;
+        }
 
         Auction cheapest = null;
 
-        for (Auction auction :
-                plugin.getAuctionManager().getAuctions()) {
+        for (Auction auction : plugin.getAuctionManager().getAuctions()) {
 
-            if (!matchesFavorite(
-                    auction.getItem(),
-                    favorite
-            )) {
+            if (!matchesFavorite(favorite, auction.getItem())) {
                 continue;
             }
 
             if (cheapest == null ||
-                    auction.getPrice()
-                            < cheapest.getPrice()) {
+                    auction.getPrice() < cheapest.getPrice()) {
 
                 cheapest = auction;
             }
@@ -334,95 +303,410 @@ public class FavoriteGUI implements Listener {
         return cheapest;
     }
 
-    // =========================================================
-    // FAVORİ EŞLEŞTİRME
-    // =========================================================
+    /* =========================================================
+       FAVORİ EŞLEŞTİRME
+       ========================================================= */
 
-    private boolean matchesFavorite(
-            ItemStack auctionItem,
-            ItemStack favorite
-    ) {
+    private boolean matchesFavorite(ItemStack favorite, ItemStack auctionItem) {
 
-        if (auctionItem == null ||
-                favorite == null) {
+        if (favorite == null || auctionItem == null) {
             return false;
         }
 
-        if (auctionItem.getType()
-                != favorite.getType()) {
-
+        if (favorite.getType() != auctionItem.getType()) {
             return false;
         }
 
-        if (!favorite.hasItemMeta()) {
+        /*
+         * Favoride büyü yoksa:
+         *
+         * Diamond Sword favorisi
+         * →
+         * normal Diamond Sword
+         * Sharpness Sword
+         * Fire Aspect Sword
+         * Sharpness + Fire Aspect Sword
+         *
+         * hepsi eşleşir.
+         */
+
+        if (favorite.getEnchantments().isEmpty()) {
             return true;
         }
 
-        if (!favorite.getEnchantments().isEmpty()) {
+        /*
+         * Favoride büyü varsa:
+         *
+         * Sharpness V favorisi
+         *
+         * Sharpness V   -> eşleşir
+         * Sharpness VI  -> eşleşir
+         * Sharpness IV  -> eşleşmez
+         *
+         * Ek büyüler olabilir.
+         */
 
-            for (Map.Entry<Enchantment, Integer> entry :
-                    favorite.getEnchantments().entrySet()) {
+        for (Map.Entry<Enchantment, Integer> entry :
+                favorite.getEnchantments().entrySet()) {
 
-                int auctionLevel =
-                        auctionItem.getEnchantmentLevel(
-                                entry.getKey()
-                        );
+            Enchantment required = entry.getKey();
+            int requiredLevel = entry.getValue();
 
-                if (auctionLevel <
-                        entry.getValue()) {
+            int auctionLevel =
+                    auctionItem.getEnchantmentLevel(required);
 
-                    return false;
-                }
+            if (auctionLevel < requiredLevel) {
+                return false;
             }
         }
 
         return true;
     }
 
-    // =========================================================
-    // ITEM SEÇİMİ
-    // =========================================================
+    /* =========================================================
+       FAVORİ SATIN ALMA
+       ========================================================= */
 
-    private void openItemSelection(
+    private void buyCheapest(Player player, int favoriteSlot) {
+
+        ItemStack favorite =
+                favoriteManager.getFavorite(
+                        player.getUniqueId(),
+                        favoriteSlot
+                );
+
+        if (favorite == null || favorite.getType().isAir()) {
+            return;
+        }
+
+        Auction cheapest = getCheapestAuction(favorite);
+
+        if (cheapest == null) {
+
+            player.sendMessage(
+                    color("&d&lEAuctions &8» &cŞu anda satışta yok.")
+            );
+
+            return;
+        }
+
+        Economy economy = plugin.getEconomy();
+
+        if (economy == null) {
+
+            player.sendMessage(
+                    color("&d&lEAuctions &8» &cEkonomi sistemi bulunamadı.")
+            );
+
+            return;
+        }
+
+        double price = cheapest.getPrice();
+
+        /*
+         * Para kontrolü
+         */
+
+        if (economy.getBalance(player) < price) {
+
+            player.sendMessage(
+                    color("&d&lEAuctions &8» &cYeterli paran yok.")
+            );
+
+            player.playSound(
+                    player.getLocation(),
+                    Sound.ENTITY_VILLAGER_NO,
+                    1.0f,
+                    1.0f
+            );
+
+            return;
+        }
+
+        /*
+         * Envanter kontrolü
+         */
+
+        if (!hasInventorySpace(
+                player,
+                cheapest.getItem()
+        )) {
+
+            player.sendMessage(
+                    color("&d&lEAuctions &8» &cEnvanterinde yeterli alan yok.")
+            );
+
+            player.playSound(
+                    player.getLocation(),
+                    Sound.ENTITY_VILLAGER_NO,
+                    1.0f,
+                    1.0f
+            );
+
+            return;
+        }
+
+        /*
+         * İlan hâlâ mevcut mu?
+         */
+
+        Auction current =
+                plugin.getAuctionManager()
+                        .getAuction(cheapest.getId());
+
+        if (current == null) {
+
+            player.sendMessage(
+                    color("&d&lEAuctions &8» &cBu ilan az önce satıldı.")
+            );
+
+            updateFavoritePrices(player);
+            return;
+        }
+
+        /*
+         * Güncel fiyatı tekrar al.
+         */
+
+        price = current.getPrice();
+
+        if (economy.getBalance(player) < price) {
+
+            player.sendMessage(
+                    color("&d&lEAuctions &8» &cYeterli paran yok.")
+            );
+
+            return;
+        }
+
+        /*
+         * Parayı çek
+         */
+
+        var withdraw =
+                economy.withdrawPlayer(player, price);
+
+        if (!withdraw.transactionSuccess()) {
+
+            player.sendMessage(
+                    color("&d&lEAuctions &8» &cSatın alma işlemi başarısız.")
+            );
+
+            return;
+        }
+
+        /*
+         * İlanı kaldır.
+         */
+
+        boolean removed =
+                plugin.getAuctionManager()
+                        .removeAuction(current.getId());
+
+        if (!removed) {
+
+            /*
+             * İlan bu sırada başka biri tarafından
+             * alındıysa parayı geri ver.
+             */
+
+            economy.depositPlayer(player, price);
+
+            player.sendMessage(
+                    color("&d&lEAuctions &8» &cBu ilan az önce satıldı.")
+            );
+
+            updateFavoritePrices(player);
+            return;
+        }
+
+        /*
+         * Satıcıya para
+         */
+
+        Player seller =
+                Bukkit.getPlayer(current.getSeller());
+
+        if (seller != null && seller.isOnline()) {
+
+            economy.depositPlayer(
+                    seller,
+                    price
+            );
+
+        } else {
+
+            /*
+             * Offline satıcı için Vault UUID desteği.
+             */
+
+            economy.depositPlayer(
+                    Bukkit.getOfflinePlayer(current.getSeller()),
+                    price
+            );
+        }
+
+        /*
+         * Eşyayı ver
+         */
+
+        player.getInventory().addItem(
+                current.getItem().clone()
+        );
+
+        /*
+         * Ses
+         */
+
+        player.playSound(
+                player.getLocation(),
+                Sound.ENTITY_PLAYER_LEVELUP,
+                1.0f,
+                1.2f
+        );
+
+        /*
+         * Mesaj
+         */
+
+        player.sendMessage(
+                color(
+                        "&d&lEAuctions &8» &aSatın aldın! &f$"
+                                + formatMoney(price)
+                )
+        );
+
+        /*
+         * Favori GUI'sini yenile.
+         */
+
+        Bukkit.getScheduler().runTask(
+                plugin,
+                () -> {
+
+                    if (player.isOnline()) {
+
+                        if (isFavoritesInventory(
+                                player.getOpenInventory()
+                        )) {
+
+                            updateFavoritePrices(player);
+                        }
+                    }
+                }
+        );
+    }
+
+    /* =========================================================
+       ENVANTER KONTROLÜ
+       ========================================================= */
+
+    private boolean hasInventorySpace(
             Player player,
-            int favoriteSlot
+            ItemStack item
     ) {
+
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+
+        int amount = item.getAmount();
+
+        /*
+         * Önce mevcut stack'lerde yer ara.
+         */
+
+        for (ItemStack content :
+                player.getInventory().getStorageContents()) {
+
+            if (content == null || content.getType().isAir()) {
+                continue;
+            }
+
+            if (!content.isSimilar(item)) {
+                continue;
+            }
+
+            int max =
+                    Math.min(
+                            content.getMaxStackSize(),
+                            player.getInventory().getMaxStackSize()
+                    );
+
+            int free = max - content.getAmount();
+
+            if (free > 0) {
+                amount -= free;
+
+                if (amount <= 0) {
+                    return true;
+                }
+            }
+        }
+
+        /*
+         * Boş slotlar.
+         */
+
+        for (ItemStack content :
+                player.getInventory().getStorageContents()) {
+
+            if (content == null || content.getType().isAir()) {
+
+                int max =
+                        Math.min(
+                                item.getMaxStackSize(),
+                                player.getInventory().getMaxStackSize()
+                        );
+
+                amount -= max;
+
+                if (amount <= 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /* =========================================================
+       EŞYA SEÇİMİ
+       ========================================================= */
+
+    private void openItemSelection(Player player, int favoriteSlot) {
 
         selectedFavoriteSlots.put(
                 player.getUniqueId(),
                 favoriteSlot
         );
 
-        itemPages.putIfAbsent(
+        itemPages.put(
                 player.getUniqueId(),
                 0
         );
 
-        openItemPage(player);
+        openItemPage(player, 0);
     }
 
-    private void openItemPage(Player player) {
-
-        int page =
-                itemPages.getOrDefault(
-                        player.getUniqueId(),
-                        0
-                );
+    private void openItemPage(Player player, int page) {
 
         List<Material> materials =
-                getAllItems();
+                getItemMaterials();
 
-        int maxPages =
-                (int) Math.ceil(
-                        materials.size() / 45.0
+        int maxPage =
+                Math.max(
+                        0,
+                        (materials.size() - 1)
+                                / ITEMS_PER_PAGE
                 );
 
         if (page < 0) {
             page = 0;
         }
 
-        if (page >= maxPages) {
-            page = maxPages - 1;
+        if (page > maxPage) {
+            page = maxPage;
         }
 
         itemPages.put(
@@ -434,123 +718,134 @@ public class FavoriteGUI implements Listener {
                 Bukkit.createInventory(
                         null,
                         54,
-                        plugin.color(
-                                "&8⭐ Item Seç &7(" +
-                                        (page + 1) +
-                                        "/" +
-                                        maxPages +
-                                        ")"
-                        )
+                        ITEM_SELECT_TITLE
                 );
 
-        fillBottom(inventory);
+        fillBackground(inventory);
 
         int start =
-                page * 45;
+                page * ITEMS_PER_PAGE;
 
-        for (int i = 0; i < 45; i++) {
+        int end =
+                Math.min(
+                        start + ITEMS_PER_PAGE,
+                        materials.size()
+                );
 
-            int index = start + i;
-
-            if (index >= materials.size()) {
-                break;
-            }
+        for (int i = start; i < end; i++) {
 
             Material material =
-                    materials.get(index);
+                    materials.get(i);
 
-            ItemStack item =
+            int slot =
+                    i - start;
+
+            ItemStack display =
                     new ItemStack(material);
 
             ItemMeta meta =
-                    item.getItemMeta();
+                    display.getItemMeta();
 
             if (meta != null) {
-
-                meta.setDisplayName(
-                        plugin.color(
-                                "&f" +
-                                        formatMaterial(material)
-                        )
-                );
 
                 List<String> lore =
                         new ArrayList<>();
 
                 lore.add("");
-
-                if (hasEnchantments(material)) {
-
-                    lore.add(
-                            plugin.color(
-                                    "&d✨ Büyü seçilebilir"
-                            )
-                    );
-
-                }
-
-                lore.add("");
-
                 lore.add(
-                        plugin.color(
-                                "&aTıklayarak seç."
+                        color(
+                                "&eTıkla &7→ Bu eşyayı seç"
                         )
                 );
 
+                if (isEnchantable(display)) {
+
+                    lore.add(
+                            color(
+                                    "&bBüyü eklenebilir."
+                            )
+                    );
+                }
+
                 meta.setLore(lore);
 
-                item.setItemMeta(meta);
+                display.setItemMeta(meta);
             }
 
             inventory.setItem(
-                    ITEM_SLOTS[i],
-                    item
+                    slot,
+                    display
             );
         }
 
-        // Geri
+        /*
+         * Geri
+         */
+
         inventory.setItem(
                 45,
-                createItem(
+                item(
                         Material.ARROW,
-                        "&c← Geri",
-                        "",
+                        "&e← Geri",
                         "&7Favorilere dön."
                 )
         );
 
-        // Önceki
+        /*
+         * Önceki
+         */
+
         if (page > 0) {
 
             inventory.setItem(
                     48,
-                    createItem(
-                            Material.ARROW,
-                            "&e← Önceki",
-                            "",
-                            "&7Önceki sayfa."
+                    item(
+                            Material.PAPER,
+                            "&e← Önceki Sayfa",
+                            "&7Önceki sayfaya geç."
                     )
             );
         }
 
+        /*
+         * Kapat
+         */
+
         inventory.setItem(
                 49,
-                createItem(
+                item(
                         Material.BARRIER,
-                        "&cKapat"
+                        "&cKapat",
+                        "&7Menüyü kapat."
                 )
         );
 
-        // Sonraki
-        if (page + 1 < maxPages) {
+        /*
+         * Sayfa
+         */
+
+        inventory.setItem(
+                50,
+                item(
+                        Material.BOOK,
+                        "&fSayfa &e" + (page + 1)
+                                + " &7/ &e" + (maxPage + 1),
+                        "&7Toplam eşya: &f" + materials.size()
+                )
+        );
+
+        /*
+         * Sonraki
+         */
+
+        if (page < maxPage) {
 
             inventory.setItem(
-                    50,
-                    createItem(
-                            Material.ARROW,
-                            "&eNövbəti →",
-                            "",
-                            "&7Sonraki sayfa."
+                    53,
+                    item(
+                            Material.PAPER,
+                            "&eSonraki Sayfa →",
+                            "&7Sonraki sayfaya geç."
                     )
             );
         }
@@ -558,9 +853,34 @@ public class FavoriteGUI implements Listener {
         player.openInventory(inventory);
     }
 
-    // =========================================================
-    // BÜYÜ MENÜSÜ
-    // =========================================================
+    private List<Material> getItemMaterials() {
+
+        List<Material> materials =
+                new ArrayList<>();
+
+        for (Material material :
+                Material.values()) {
+
+            if (material.isItem()
+                    && !material.isAir()
+                    && !material.name().contains("LEGACY")) {
+
+                materials.add(material);
+            }
+        }
+
+        materials.sort(
+                Comparator.comparing(
+                        Material::name
+                )
+        );
+
+        return materials;
+    }
+
+    /* =========================================================
+       BÜYÜ SEÇİMİ
+       ========================================================= */
 
     private void openEnchantSelection(
             Player player,
@@ -572,93 +892,23 @@ public class FavoriteGUI implements Listener {
                 item.clone()
         );
 
-        Inventory inventory =
-                Bukkit.createInventory(
-                        null,
-                        54,
-                        plugin.color(
-                                "&8⭐ Büyüler"
-                        )
-                );
-
-        fillBottom(inventory);
-
-        int slot = 0;
-
-        for (Enchantment enchantment :
-                Enchantment.values()) {
-
-            if (!enchantment.canEnchantItem(item)) {
-                continue;
-            }
-
-            if (slot >= 45) {
-                break;
-            }
-
-            int current =
-                    item.getEnchantmentLevel(
-                            enchantment
-                    );
-
-            String level =
-                    current > 0
-                            ? "&aSeviye " + current
-                            : "&7Seçilmedi";
-
-            inventory.setItem(
-                    slot,
-                    createItem(
-                            Material.ENCHANTED_BOOK,
-                            "&d" +
-                                    formatEnchantment(
-                                            enchantment
-                                    ),
-                            "",
-                            level,
-                            "",
-                            "&eSol Tık &7→ Seviye seç",
-                            "&cSağ Tık &7→ Büyüyü kaldır"
-                    )
-            );
-
-            slot++;
-        }
-
-        inventory.setItem(
-                45,
-                createItem(
-                        Material.ARROW,
-                        "&c← Geri"
-                )
-        );
-
-        inventory.setItem(
-                49,
-                createItem(
-                        Material.EMERALD,
-                        "&a✔ Kaydet",
-                        "",
-                        "&7Favoriyi kaydet."
-                )
-        );
-
-        player.openInventory(inventory);
-    }
-
-    // =========================================================
-    // BÜYÜ SEVİYESİ
-    // =========================================================
-
-    private void openEnchantLevels(
-            Player player,
-            Enchantment enchantment
-    ) {
-
         pendingEnchantments.put(
                 player.getUniqueId(),
-                enchantment
+                new HashMap<>()
         );
+
+        enchantPages.put(
+                player.getUniqueId(),
+                0
+        );
+
+        openEnchantPage(player, 0);
+    }
+
+    private void openEnchantPage(
+            Player player,
+            int page
+    ) {
 
         ItemStack item =
                 pendingItems.get(
@@ -670,72 +920,378 @@ public class FavoriteGUI implements Listener {
             return;
         }
 
+        List<Enchantment> enchantments =
+                getCompatibleEnchantments(item);
+
+        int maxPage =
+                Math.max(
+                        0,
+                        (enchantments.size() - 1)
+                                / 45
+                );
+
+        if (page < 0) {
+            page = 0;
+        }
+
+        if (page > maxPage) {
+            page = maxPage;
+        }
+
+        enchantPages.put(
+                player.getUniqueId(),
+                page
+        );
+
         Inventory inventory =
                 Bukkit.createInventory(
                         null,
-                        27,
-                        plugin.color(
-                                "&8⭐ Büyü Seviyesi"
-                        )
+                        54,
+                        ENCHANT_SELECT_TITLE
                 );
 
         fillBackground(inventory);
 
-        int max =
+        int start =
+                page * 45;
+
+        int end =
                 Math.min(
-                        enchantment.getMaxLevel(),
-                        10
+                        start + 45,
+                        enchantments.size()
                 );
 
-        for (int level = 1;
-             level <= max;
-             level++) {
+        Map<Enchantment, Integer> selected =
+                pendingEnchantments.computeIfAbsent(
+                        player.getUniqueId(),
+                        ignored -> new HashMap<>()
+                );
+
+        for (int i = start; i < end; i++) {
+
+            Enchantment enchantment =
+                    enchantments.get(i);
+
+            int slot =
+                    i - start;
+
+            ItemStack display =
+                    new ItemStack(Material.ENCHANTED_BOOK);
+
+            ItemMeta meta =
+                    display.getItemMeta();
+
+            if (meta != null) {
+
+                String name =
+                        getEnchantmentName(
+                                enchantment
+                        );
+
+                meta.setDisplayName(
+                        color(
+                                "&d" + name
+                        )
+                );
+
+                List<String> lore =
+                        new ArrayList<>();
+
+                lore.add("");
+
+                Integer selectedLevel =
+                        selected.get(enchantment);
+
+                if (selectedLevel != null) {
+
+                    lore.add(
+                            color(
+                                    "&aSeçili seviye: &f"
+                                            + selectedLevel
+                            )
+                    );
+
+                    lore.add(
+                            color(
+                                    "&eSol tık &7→ Seviyeyi değiştir"
+                            )
+                    );
+
+                    lore.add(
+                            color(
+                                    "&cSağ tık &7→ Büyüyü kaldır"
+                            )
+                    );
+
+                } else {
+
+                    lore.add(
+                            color(
+                                    "&eTıkla &7→ Seviye seç"
+                            )
+                    );
+                }
+
+                meta.setLore(lore);
+
+                display.setItemMeta(meta);
+            }
 
             inventory.setItem(
-                    9 + level - 1,
-                    createItem(
-                            Material.ENCHANTED_BOOK,
-                            "&d" +
-                                    formatEnchantment(
-                                            enchantment
-                                    ) +
-                                    " " +
-                                    roman(level),
-                            "",
-                            "&aSeviye " +
-                                    level +
-                                    " seç."
+                    slot,
+                    display
+            );
+        }
+
+        /*
+         * Geri
+         */
+
+        inventory.setItem(
+                45,
+                item(
+                        Material.ARROW,
+                        "&e← Geri",
+                        "&7Eşya seçimine dön."
+                )
+        );
+
+        /*
+         * Önceki
+         */
+
+        if (page > 0) {
+
+            inventory.setItem(
+                    47,
+                    item(
+                            Material.PAPER,
+                            "&e← Önceki",
+                            "&7Önceki sayfa."
                     )
             );
         }
 
+        /*
+         * Kaydet
+         */
+
         inventory.setItem(
-                22,
-                createItem(
-                        Material.ARROW,
-                        "&c← Geri"
+                49,
+                item(
+                        Material.LIME_DYE,
+                        "&aFavoriyi Kaydet",
+                        "&7Seçtiğin eşyayı favoriye ekle."
                 )
         );
+
+        /*
+         * Sonraki
+         */
+
+        if (page < maxPage) {
+
+            inventory.setItem(
+                    53,
+                    item(
+                            Material.PAPER,
+                            "&eSonraki →",
+                            "&7Sonraki sayfa."
+                    )
+            );
+        }
 
         player.openInventory(inventory);
     }
 
-    // =========================================================
-    // CLICK
-    // =========================================================
+    private List<Enchantment> getCompatibleEnchantments(
+            ItemStack item
+    ) {
+
+        List<Enchantment> result =
+                new ArrayList<>();
+
+        for (Enchantment enchantment :
+                Enchantment.values()) {
+
+            try {
+
+                if (enchantment.canEnchantItem(item)) {
+                    result.add(enchantment);
+                }
+
+            } catch (Exception ignored) {
+            }
+        }
+
+        result.sort(
+                Comparator.comparing(
+                        this::getEnchantmentName
+                )
+        );
+
+        return result;
+    }
+
+    private String getEnchantmentName(
+            Enchantment enchantment
+    ) {
+
+        String key =
+                enchantment.getKey().getKey();
+
+        String[] parts =
+                key.split("_");
+
+        StringBuilder builder =
+                new StringBuilder();
+
+        for (String part : parts) {
+
+            if (part.isEmpty()) {
+                continue;
+            }
+
+            builder.append(
+                    Character.toUpperCase(
+                            part.charAt(0)
+                    )
+            );
+
+            if (part.length() > 1) {
+
+                builder.append(
+                        part.substring(1)
+                                .toLowerCase(Locale.ROOT)
+                );
+            }
+
+            builder.append(" ");
+        }
+
+        return builder.toString().trim();
+    }
+
+    /* =========================================================
+       BÜYÜ SEVİYESİ
+       ========================================================= */
+
+    private void openEnchantLevels(
+            Player player,
+            Enchantment enchantment
+    ) {
+
+        Inventory inventory =
+                Bukkit.createInventory(
+                        null,
+                        27,
+                        ENCHANT_LEVEL_TITLE
+                );
+
+        fillBackground(inventory);
+
+        int maxLevel =
+                enchantment.getMaxLevel();
+
+        maxLevel =
+                Math.max(
+                        1,
+                        Math.min(
+                                maxLevel,
+                                10
+                        )
+                );
+
+        for (int level = 1; level <= maxLevel; level++) {
+
+            int slot =
+                    8 + level;
+
+            if (slot >= 27) {
+                break;
+            }
+
+            ItemStack display =
+                    new ItemStack(Material.ENCHANTED_BOOK);
+
+            ItemMeta meta =
+                    display.getItemMeta();
+
+            if (meta != null) {
+
+                meta.setDisplayName(
+                        color(
+                                "&d"
+                                        + getEnchantmentName(
+                                        enchantment
+                                )
+                                        + " &f"
+                                        + roman(level)
+                );
+
+                List<String> lore =
+                        new ArrayList<>();
+
+                lore.add("");
+
+                lore.add(
+                        color(
+                                "&eTıkla &7→ Seviye "
+                                        + level
+                                        + " seç"
+                        )
+                );
+
+                meta.setLore(lore);
+
+                display.setItemMeta(meta);
+            }
+
+            inventory.setItem(
+                    slot,
+                    display
+            );
+        }
+
+        inventory.setItem(
+                18,
+                item(
+                        Material.ARROW,
+                        "&e← Geri",
+                        "&7Büyü listesine dön."
+                )
+        );
+
+        player.openInventory(inventory);
+
+        /*
+         * Enchantment seçimini geçici olarak metadata ile
+         * tutmamak için map'e eklemiyoruz.
+         *
+         * Bunun yerine aşağıdaki alan kullanılır.
+         */
+
+        pendingSelectedEnchantment.put(
+                player.getUniqueId(),
+                enchantment
+        );
+    }
+
+    private final Map<UUID, Enchantment> pendingSelectedEnchantment =
+            new HashMap<>();
+
+    /* =========================================================
+       CLICK
+       ========================================================= */
 
     @EventHandler
-    public void onClick(
+    public void onInventoryClick(
             InventoryClickEvent event
     ) {
 
-        if (!(event.getWhoClicked()
-                instanceof Player)) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-
-        Player player =
-                (Player) event.getWhoClicked();
 
         String title =
                 event.getView().getTitle();
@@ -743,116 +1299,119 @@ public class FavoriteGUI implements Listener {
         int slot =
                 event.getRawSlot();
 
-        if (slot < 0 ||
-                slot >= event.getView()
-                        .getTopInventory()
-                        .getSize()) {
+        if (slot < 0) {
             return;
         }
 
-        // =====================================================
-        // FAVORİLER
-        // =====================================================
+        /*
+         * FAVORİ ANA MENÜ
+         */
 
-        if (title.equals(
-                plugin.color("&8⭐ Favoriler")
-        )) {
+        if (title.equals(FAVORITES_TITLE)) {
 
             event.setCancelled(true);
+
+            if (slot == 45) {
+
+                stopRefresh(player);
+
+                plugin.getAuctionGUI()
+                        .openGUI(
+                                player,
+                                null
+                        );
+
+                return;
+            }
 
             if (slot == 49) {
 
-                plugin.getAuctionGUI()
-                        .open(player);
-
+                player.closeInventory();
                 return;
             }
 
-            int favoriteIndex = -1;
+            for (int i = 0; i < FAVORITE_SLOTS.length; i++) {
 
-            for (int i = 0;
-                 i < FAVORITE_SLOTS.length;
-                 i++) {
-
-                if (FAVORITE_SLOTS[i] == slot) {
-
-                    favoriteIndex = i;
-                    break;
+                if (slot != FAVORITE_SLOTS[i]) {
+                    continue;
                 }
-            }
 
-            if (favoriteIndex == -1) {
-                return;
-            }
+                ItemStack favorite =
+                        favoriteManager.getFavorite(
+                                player.getUniqueId(),
+                                i
+                        );
 
-            ItemStack favorite =
-                    favoriteManager.getFavorite(
-                            player.getUniqueId(),
-                            favoriteIndex
+                if (favorite == null
+                        || favorite.getType().isAir()) {
+
+                    openItemSelection(
+                            player,
+                            i
                     );
 
-            // BOŞ FAVORİ
-            if (favorite == null ||
-                    favorite.getType().isAir()) {
+                    return;
+                }
 
-                openItemSelection(
-                        player,
-                        favoriteIndex
-                );
+                /*
+                 * Sağ tık = sil
+                 */
 
-                return;
-            }
+                if (event.isRightClick()) {
 
-            // SAĞ KLİK = SİL
-            if (event.isRightClick()) {
+                    favoriteManager.removeFavorite(
+                            player.getUniqueId(),
+                            i
+                    );
 
-                favoriteManager.removeFavorite(
-                        player.getUniqueId(),
-                        favoriteIndex
-                );
+                    player.playSound(
+                            player.getLocation(),
+                            Sound.UI_BUTTON_CLICK,
+                            1.0f,
+                            1.0f
+                    );
 
-                player.playSound(
-                        player.getLocation(),
-                        Sound.BLOCK_NOTE_BLOCK_BASS,
-                        1f,
-                        0.7f
-                );
+                    openFavorites(player);
 
-                player.sendMessage(
-                        plugin.color(
-                                "&d&lEAuctions &8» " +
-                                        "&cFavori silindi."
-                        )
-                );
+                    return;
+                }
 
-                openFavorites(player);
+                /*
+                 * Sol tık = en ucuzu satın al
+                 */
 
-                return;
-            }
+                if (event.isLeftClick()) {
 
-            // SOL KLİK = EN UCUZU AL
-            if (event.isLeftClick()) {
+                    buyCheapest(
+                            player,
+                            i
+                    );
 
-                buyCheapest(
-                        player,
-                        favorite
-                );
-
-                return;
+                    return;
+                }
             }
 
             return;
         }
 
-        // =====================================================
-        // ITEM SEÇİMİ
-        // =====================================================
+        /*
+         * EŞYA SEÇİMİ
+         */
 
-        if (title.startsWith(
-                plugin.color("&8⭐ Item Seç")
-        )) {
+        if (title.equals(ITEM_SELECT_TITLE)) {
 
             event.setCancelled(true);
+
+            int favoriteSlot =
+                    selectedFavoriteSlots.getOrDefault(
+                            player.getUniqueId(),
+                            -1
+                    );
+
+            if (favoriteSlot < 0) {
+                openFavorites(player);
+                return;
+            }
 
             if (slot == 45) {
 
@@ -868,15 +1427,10 @@ public class FavoriteGUI implements Listener {
                                 0
                         );
 
-                if (page > 0) {
-
-                    itemPages.put(
-                            player.getUniqueId(),
-                            page - 1
-                    );
-
-                    openItemPage(player);
-                }
+                openItemPage(
+                        player,
+                        page - 1
+                );
 
                 return;
             }
@@ -888,6 +1442,10 @@ public class FavoriteGUI implements Listener {
             }
 
             if (slot == 50) {
+                return;
+            }
+
+            if (slot == 53) {
 
                 int page =
                         itemPages.getOrDefault(
@@ -895,203 +1453,77 @@ public class FavoriteGUI implements Listener {
                                 0
                         );
 
-                int maxPages =
-                        (int) Math.ceil(
-                                getAllItems().size()
-                                        / 45.0
-                        );
-
-                if (page + 1 < maxPages) {
-
-                    itemPages.put(
-                            player.getUniqueId(),
-                            page + 1
-                    );
-
-                    openItemPage(player);
-                }
-
-                return;
-            }
-
-            if (slot < 0 ||
-                    slot >= 45) {
-                return;
-            }
-
-            ItemStack clicked =
-                    event.getCurrentItem();
-
-            if (clicked == null ||
-                    clicked.getType().isAir()) {
-                return;
-            }
-
-            int favoriteSlot =
-                    selectedFavoriteSlots.getOrDefault(
-                            player.getUniqueId(),
-                            -1
-                    );
-
-            if (favoriteSlot < 0) {
-                return;
-            }
-
-            ItemStack selected =
-                    new ItemStack(
-                            clicked.getType()
-                    );
-
-            if (hasEnchantments(
-                    selected.getType()
-            )) {
-
-                openEnchantSelection(
+                openItemPage(
                         player,
-                        selected
+                        page + 1
                 );
 
-            } else {
-
-                saveFavorite(
-                        player,
-                        favoriteSlot,
-                        selected
-                );
-            }
-
-            return;
-        }
-
-        // =====================================================
-        // BÜYÜLER
-        // =====================================================
-
-        if (title.equals(
-                plugin.color("&8⭐ Büyüler")
-        )) {
-
-            event.setCancelled(true);
-
-            if (slot == 45) {
-
-                int favoriteSlot =
-                        selectedFavoriteSlots.getOrDefault(
-                                player.getUniqueId(),
-                                -1
-                        );
-
-                if (favoriteSlot >= 0) {
-                    openItemSelection(
-                            player,
-                            favoriteSlot
-                    );
-                }
-
                 return;
             }
 
-            if (slot == 49) {
-
-                ItemStack item =
-                        pendingItems.get(
-                                player.getUniqueId()
-                        );
-
-                int favoriteSlot =
-                        selectedFavoriteSlots.getOrDefault(
-                                player.getUniqueId(),
-                                -1
-                        );
-
-                if (item != null &&
-                        favoriteSlot >= 0) {
-
-                    saveFavorite(
-                            player,
-                            favoriteSlot,
-                            item
-                    );
-                }
-
-                return;
-            }
-
-            if (slot < 45) {
+            if (slot >= 0 && slot < 45) {
 
                 ItemStack clicked =
                         event.getCurrentItem();
 
-                if (clicked == null ||
-                        clicked.getItemMeta() == null) {
+                if (clicked == null
+                        || clicked.getType().isAir()) {
                     return;
                 }
 
-                String name =
-                        clicked.getItemMeta()
-                                .getDisplayName();
+                ItemStack selected =
+                        new ItemStack(
+                                clicked.getType()
+                        );
 
-                for (Enchantment enchantment :
-                        Enchantment.values()) {
+                /*
+                 * Enchantable ise büyü seçimine git.
+                 */
 
-                    String enchantName =
-                            plugin.color(
-                                    "&d" +
-                                            formatEnchantment(
-                                                    enchantment
-                                            )
-                            );
+                if (isEnchantable(selected)) {
 
-                    if (name.startsWith(
-                            enchantName
-                    )) {
+                    openEnchantSelection(
+                            player,
+                            selected
+                    );
 
-                        if (event.isRightClick()) {
+                } else {
 
-                            ItemStack item =
-                                    pendingItems.get(
-                                            player.getUniqueId()
-                                    );
+                    favoriteManager.setFavorite(
+                            player.getUniqueId(),
+                            favoriteSlot,
+                            selected
+                    );
 
-                            if (item != null) {
+                    player.playSound(
+                            player.getLocation(),
+                            Sound.UI_TOAST_CHALLENGE_COMPLETE,
+                            1.0f,
+                            1.0f
+                    );
 
-                                item.removeEnchantment(
-                                        enchantment
-                                );
+                    player.sendMessage(
+                            color(
+                                    "&d&lEAuctions &8» &aFavori eklendi."
+                            )
+                    );
 
-                                openEnchantSelection(
-                                        player,
-                                        item
-                                );
-                            }
-
-                        } else {
-
-                            openEnchantLevels(
-                                    player,
-                                    enchantment
-                            );
-                        }
-
-                        return;
-                    }
+                    openFavorites(player);
                 }
             }
 
             return;
         }
 
-        // =====================================================
-        // BÜYÜ SEVİYESİ
-        // =====================================================
+        /*
+         * BÜYÜ SEÇİMİ
+         */
 
-        if (title.equals(
-                plugin.color("&8⭐ Büyü Seviyesi")
-        )) {
+        if (title.equals(ENCHANT_SELECT_TITLE)) {
 
             event.setCancelled(true);
 
-            if (slot == 22) {
+            if (slot == 45) {
 
                 ItemStack item =
                         pendingItems.get(
@@ -1100,364 +1532,406 @@ public class FavoriteGUI implements Listener {
 
                 if (item != null) {
 
-                    openEnchantSelection(
+                    openItemPage(
                             player,
-                            item
+                            itemPages.getOrDefault(
+                                    player.getUniqueId(),
+                                    0
+                            )
                     );
+
+                } else {
+
+                    openFavorites(player);
                 }
 
                 return;
             }
 
-            if (slot < 9 ||
-                    slot > 18) {
+            if (slot == 47) {
+
+                int page =
+                        enchantPages.getOrDefault(
+                                player.getUniqueId(),
+                                0
+                        );
+
+                openEnchantPage(
+                        player,
+                        page - 1
+                );
+
+                return;
+            }
+
+            if (slot == 49) {
+
+                savePendingFavorite(player);
+                return;
+            }
+
+            if (slot == 53) {
+
+                int page =
+                        enchantPages.getOrDefault(
+                                player.getUniqueId(),
+                                0
+                        );
+
+                openEnchantPage(
+                        player,
+                        page + 1
+                );
+
+                return;
+            }
+
+            if (slot >= 0 && slot < 45) {
+
+                ItemStack clicked =
+                        event.getCurrentItem();
+
+                if (clicked == null
+                        || clicked.getType() != Material.ENCHANTED_BOOK) {
+                    return;
+                }
+
+                List<Enchantment> enchantments =
+                        getCompatibleEnchantments(
+                                pendingItems.get(
+                                        player.getUniqueId()
+                                )
+                        );
+
+                int page =
+                        enchantPages.getOrDefault(
+                                player.getUniqueId(),
+                                0
+                        );
+
+                int index =
+                        page * 45 + slot;
+
+                if (index < 0
+                        || index >= enchantments.size()) {
+                    return;
+                }
+
+                Enchantment enchantment =
+                        enchantments.get(index);
+
+                /*
+                 * Sağ tık = büyüyü kaldır
+                 */
+
+                if (event.isRightClick()) {
+
+                    pendingEnchantments
+                            .computeIfAbsent(
+                                    player.getUniqueId(),
+                                    ignored -> new HashMap<>()
+                            )
+                            .remove(enchantment);
+
+                    openEnchantPage(
+                            player,
+                            page
+                    );
+
+                    return;
+                }
+
+                /*
+                 * Sol tık = level seç
+                 */
+
+                openEnchantLevels(
+                        player,
+                        enchantment
+                );
+            }
+
+            return;
+        }
+
+        /*
+         * BÜYÜ SEVİYESİ
+         */
+
+        if (title.equals(ENCHANT_LEVEL_TITLE)) {
+
+            event.setCancelled(true);
+
+            if (slot == 18) {
+
+                openEnchantPage(
+                        player,
+                        enchantPages.getOrDefault(
+                                player.getUniqueId(),
+                                0
+                        )
+                );
+
+                return;
+            }
+
+            if (slot < 9 || slot > 18) {
                 return;
             }
 
             Enchantment enchantment =
-                    pendingEnchantments.get(
+                    pendingSelectedEnchantment.get(
                             player.getUniqueId()
                     );
 
-            ItemStack item =
-                    pendingItems.get(
-                            player.getUniqueId()
-                    );
-
-            if (enchantment == null ||
-                    item == null) {
+            if (enchantment == null) {
                 return;
             }
 
             int level =
                     slot - 8;
 
-            if (level < 1 ||
-                    level > enchantment.getMaxLevel()) {
+            int max =
+                    Math.min(
+                            enchantment.getMaxLevel(),
+                            10
+                    );
+
+            if (level < 1 || level > max) {
                 return;
             }
 
-            item.removeEnchantment(
-                    enchantment
+            pendingEnchantments
+                    .computeIfAbsent(
+                            player.getUniqueId(),
+                            ignored -> new HashMap<>()
+                    )
+                    .put(
+                            enchantment,
+                            level
+                    );
+
+            pendingSelectedEnchantment.remove(
+                    player.getUniqueId()
             );
 
-            item.addUnsafeEnchantment(
-                    enchantment,
-                    level
-            );
-
-            openEnchantSelection(
+            openEnchantPage(
                     player,
-                    item
+                    enchantPages.getOrDefault(
+                            player.getUniqueId(),
+                            0
+                    )
             );
 
             return;
         }
     }
 
-    // =========================================================
-    // EN UCUZUNU SATIN AL
-    // =========================================================
+    /* =========================================================
+       FAVORİ KAYDET
+       ========================================================= */
 
-    private void buyCheapest(
-            Player player,
-            ItemStack favorite
-    ) {
+    private void savePendingFavorite(Player player) {
 
-        Auction auction =
-                getCheapestAuction(
-                        favorite
+        int favoriteSlot =
+                selectedFavoriteSlots.getOrDefault(
+                        player.getUniqueId(),
+                        -1
                 );
-
-        if (auction == null) {
-
-            player.sendMessage(
-                    plugin.color(
-                            "&d&lEAuctions &8» " +
-                                    "&cBu item artıq satışda deyil."
-                    )
-            );
-
-            return;
-        }
-
-        Economy economy =
-                plugin.getEconomy();
-
-        if (economy == null) {
-            return;
-        }
-
-        double price =
-                auction.getPrice();
-
-        if (!economy.has(
-                player,
-                price
-        )) {
-
-            player.sendMessage(
-                    plugin.color(
-                            "&d&lEAuctions &8» " +
-                                    "&cKifayət qədər pulunuz yoxdur."
-                    )
-            );
-
-            return;
-        }
-
-        if (!hasInventorySpace(
-                player,
-                auction.getItem()
-        )) {
-
-            player.sendMessage(
-                    plugin.color(
-                            "&d&lEAuctions &8» " +
-                                    "&cEnvanterinizdə yer yoxdur."
-                    )
-            );
-
-            return;
-        }
-
-        boolean withdrawn =
-                economy.withdrawPlayer(
-                        player,
-                        price
-                ).transactionSuccess();
-
-        if (!withdrawn) {
-            return;
-        }
-
-        economy.depositPlayer(
-                Bukkit.getOfflinePlayer(
-                        auction.getSeller()
-                ),
-                price
-        );
-
-        player.getInventory().addItem(
-                auction.getItem().clone()
-        );
-
-        plugin.getAuctionManager()
-                .removeAuction(
-                        auction.getId()
-                );
-
-        player.playSound(
-                player.getLocation(),
-                Sound.ENTITY_PLAYER_LEVELUP,
-                1f,
-                1.2f
-        );
-
-        player.sendMessage(
-                plugin.color(
-                        "&d&lEAuctions &8» " +
-                                "&aItem satın alındı! " +
-                                "&7($"
-                                + plugin.formatMoney(price)
-                                + ")"
-                )
-        );
-
-        openFavorites(player);
-    }
-
-    // =========================================================
-    // INVENTORY SPACE
-    // =========================================================
-
-    private boolean hasInventorySpace(
-            Player player,
-            ItemStack item
-    ) {
-
-        int amount =
-                item.getAmount();
-
-        for (ItemStack content :
-                player.getInventory()
-                        .getStorageContents()) {
-
-            if (content == null ||
-                    content.getType().isAir()) {
-
-                return true;
-            }
-
-            if (content.isSimilar(item)) {
-
-                int space =
-                        content.getMaxStackSize()
-                                - content.getAmount();
-
-                if (space >= amount) {
-                    return true;
-                }
-
-                amount -= space;
-
-                if (amount <= 0) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    // =========================================================
-    // BÜTÜN ITEMLƏR
-    // =========================================================
-
-    private List<Material> getAllItems() {
-
-        List<Material> materials =
-                new ArrayList<>();
-
-        for (Material material :
-                Material.values()) {
-
-            if (!material.isItem()) {
-                continue;
-            }
-
-            if (material == Material.AIR) {
-                continue;
-            }
-
-            materials.add(material);
-        }
-
-        materials.sort(
-                Comparator.comparing(
-                        this::formatMaterial
-                )
-        );
-
-        return materials;
-    }
-
-    // =========================================================
-    // ENCHANT OLUNA BİLƏR?
-    // =========================================================
-
-    private boolean hasEnchantments(
-            Material material
-    ) {
 
         ItemStack item =
-                new ItemStack(material);
+                pendingItems.get(
+                        player.getUniqueId()
+                );
 
-        for (Enchantment enchantment :
-                Enchantment.values()) {
-
-            if (enchantment.canEnchantItem(item)) {
-                return true;
-            }
+        if (favoriteSlot < 0 || item == null) {
+            openFavorites(player);
+            return;
         }
 
-        return false;
-    }
+        Map<Enchantment, Integer> enchantments =
+                pendingEnchantments.getOrDefault(
+                        player.getUniqueId(),
+                        new HashMap<>()
+                );
 
-    // =========================================================
-    // SAVE FAVORITE
-    // =========================================================
+        ItemStack result =
+                item.clone();
 
-    private void saveFavorite(
-            Player player,
-            int slot,
-            ItemStack item
-    ) {
+        for (Map.Entry<Enchantment, Integer> entry :
+                enchantments.entrySet()) {
 
-        if (slot < 0) {
-            return;
+            result.addUnsafeEnchantment(
+                    entry.getKey(),
+                    entry.getValue()
+            );
         }
 
         favoriteManager.setFavorite(
                 player.getUniqueId(),
-                slot,
-                item
-        );
-
-        pendingItems.remove(
-                player.getUniqueId()
-        );
-
-        pendingEnchantments.remove(
-                player.getUniqueId()
+                favoriteSlot,
+                result
         );
 
         player.playSound(
                 player.getLocation(),
-                Sound.UI_BUTTON_CLICK,
-                1f,
-                1.2f
+                Sound.UI_TOAST_CHALLENGE_COMPLETE,
+                1.0f,
+                1.0f
         );
 
         player.sendMessage(
-                plugin.color(
-                        "&d&lEAuctions &8» " +
-                                "&aFavori kaydedildi!"
+                color(
+                        "&d&lEAuctions &8» &aFavori kaydedildi."
                 )
         );
+
+        clearPending(player);
 
         openFavorites(player);
     }
 
-    // =========================================================
-    // BACKGROUND
-    // =========================================================
+    /* =========================================================
+       ENCHANTABLE
+       ========================================================= */
+
+    private boolean isEnchantable(ItemStack item) {
+
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+
+        for (Enchantment enchantment :
+                Enchantment.values()) {
+
+            try {
+
+                if (enchantment.canEnchantItem(item)) {
+                    return true;
+                }
+
+            } catch (Exception ignored) {
+            }
+        }
+
+        return false;
+    }
+
+    /* =========================================================
+       GUI KAPATMA / TEMİZLEME
+       ========================================================= */
+
+    @EventHandler
+    public void onInventoryClose(
+            InventoryCloseEvent event
+    ) {
+
+        if (!(event.getPlayer() instanceof Player player)) {
+            return;
+        }
+
+        String title =
+                event.getView().getTitle();
+
+        if (title.equals(FAVORITES_TITLE)) {
+            stopRefresh(player);
+        }
+
+        if (title.equals(ITEM_SELECT_TITLE)
+                || title.equals(ENCHANT_SELECT_TITLE)
+                || title.equals(ENCHANT_LEVEL_TITLE)) {
+
+            /*
+             * Oyuncu GUI'yi gerçekten kapattıysa
+             * geçici seçimleri temizle.
+             */
+
+            Bukkit.getScheduler().runTask(
+                    plugin,
+                    () -> {
+
+                        if (!player.isOnline()) {
+                            clearPending(player);
+                            return;
+                        }
+
+                        String newTitle =
+                                player.getOpenInventory()
+                                        .getTitle();
+
+                        if (!newTitle.equals(ITEM_SELECT_TITLE)
+                                && !newTitle.equals(ENCHANT_SELECT_TITLE)
+                                && !newTitle.equals(ENCHANT_LEVEL_TITLE)) {
+
+                            clearPending(player);
+                        }
+                    }
+            );
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(
+            PlayerQuitEvent event
+    ) {
+
+        Player player =
+                event.getPlayer();
+
+        stopRefresh(player);
+        clearPending(player);
+    }
+
+    private void stopRefresh(Player player) {
+
+        UUID uuid =
+                player.getUniqueId();
+
+        BukkitTask task =
+                refreshTasks.remove(uuid);
+
+        if (task != null) {
+            task.cancel();
+        }
+    }
+
+    private void clearPending(Player player) {
+
+        UUID uuid =
+                player.getUniqueId();
+
+        selectedFavoriteSlots.remove(uuid);
+        pendingItems.remove(uuid);
+        pendingEnchantments.remove(uuid);
+        pendingSelectedEnchantment.remove(uuid);
+        itemPages.remove(uuid);
+        enchantPages.remove(uuid);
+    }
+
+    /* =========================================================
+       GUI YARDIMCILARI
+       ========================================================= */
 
     private void fillBackground(
             Inventory inventory
     ) {
 
         ItemStack glass =
-                createItem(
-                        Material.GRAY_STAINED_GLASS_PANE,
-                        "&7"
+                item(
+                        Material.BLACK_STAINED_GLASS_PANE,
+                        " ",
+                        null
                 );
 
-        for (int i = 0;
-             i < inventory.getSize();
-             i++) {
+        for (int i = 0; i < inventory.getSize(); i++) {
 
-            inventory.setItem(
-                    i,
-                    glass
-            );
+            if (inventory.getItem(i) == null) {
+                inventory.setItem(i, glass);
+            }
         }
     }
 
-    private void fillBottom(
-            Inventory inventory
-    ) {
-
-        ItemStack glass =
-                createItem(
-                        Material.GRAY_STAINED_GLASS_PANE,
-                        "&7"
-                );
-
-        for (int i = 45; i < 54; i++) {
-
-            inventory.setItem(
-                    i,
-                    glass
-            );
-        }
-    }
-
-    // =========================================================
-    // ITEM CREATE
-    // =========================================================
-
-    private ItemStack createItem(
+    private ItemStack item(
             Material material,
             String name,
             String... lore
@@ -1472,20 +1946,31 @@ public class FavoriteGUI implements Listener {
         if (meta != null) {
 
             meta.setDisplayName(
-                    plugin.color(name)
+                    color(name)
             );
 
-            List<String> lines =
-                    new ArrayList<>();
+            if (lore != null) {
 
-            for (String line : lore) {
+                List<String> list =
+                        new ArrayList<>();
 
-                lines.add(
-                        plugin.color(line)
-                );
+                for (String line : lore) {
+
+                    if (line == null) {
+                        continue;
+                    }
+
+                    list.add(
+                            color(line)
+                    );
+                }
+
+                meta.setLore(list);
             }
 
-            meta.setLore(lines);
+            meta.addItemFlags(
+                    ItemFlag.HIDE_ATTRIBUTES
+            );
 
             item.setItemMeta(meta);
         }
@@ -1493,103 +1978,76 @@ public class FavoriteGUI implements Listener {
         return item;
     }
 
-    // =========================================================
-    // MATERIAL NAME
-    // =========================================================
-
-    private String formatMaterial(
-            Material material
+    private String formatMoney(
+            double amount
     ) {
 
-        String[] parts =
-                material.name()
-                        .toLowerCase(Locale.ROOT)
-                        .split("_");
-
-        StringBuilder result =
-                new StringBuilder();
-
-        for (String part : parts) {
-
-            if (result.length() > 0) {
-                result.append(" ");
-            }
-
-            result.append(
-                    Character.toUpperCase(
-                            part.charAt(0)
-                    )
-            );
-
-            if (part.length() > 1) {
-                result.append(
-                        part.substring(1)
-                );
-            }
+        if (amount >= 1_000_000_000_000D) {
+            return moneyFormat.format(
+                    amount / 1_000_000_000_000D
+            ) + "T";
         }
 
-        return result.toString();
+        if (amount >= 1_000_000_000D) {
+            return moneyFormat.format(
+                    amount / 1_000_000_000D
+            ) + "B";
+        }
+
+        if (amount >= 1_000_000D) {
+            return moneyFormat.format(
+                    amount / 1_000_000D
+            ) + "M";
+        }
+
+        if (amount >= 1_000D) {
+            return moneyFormat.format(
+                    amount / 1_000D
+            ) + "K";
+        }
+
+        return moneyFormat.format(amount);
     }
 
-    // =========================================================
-    // ENCHANT NAME
-    // =========================================================
-
-    private String formatEnchantment(
-            Enchantment enchantment
+    private boolean isFavoritesInventory(
+            org.bukkit.event.inventory.InventoryView view
     ) {
 
-        String[] parts =
-                enchantment.getKey()
-                        .getKey()
-                        .split("_");
+        return view != null
+                && view.getTopInventory() != null
+                && view.getTitle().equals(
+                FAVORITES_TITLE
+        );
+    }
 
-        StringBuilder result =
-                new StringBuilder();
+    private static String color(
+            String text
+    ) {
 
-        for (String part : parts) {
-
-            if (result.length() > 0) {
-                result.append(" ");
-            }
-
-            result.append(
-                    Character.toUpperCase(
-                            part.charAt(0)
-                    )
-            );
-
-            if (part.length() > 1) {
-                result.append(
-                        part.substring(1)
-                );
-            }
+        if (text == null) {
+            return "";
         }
 
-        return result.toString();
+        return ChatColor.translateAlternateColorCodes(
+                '&',
+                text
+        );
     }
 
     private String roman(int number) {
 
-        String[] values = {
-                "I",
-                "II",
-                "III",
-                "IV",
-                "V",
-                "VI",
-                "VII",
-                "VIII",
-                "IX",
-                "X"
+        return switch (number) {
+            case 1 -> "I";
+            case 2 -> "II";
+            case 3 -> "III";
+            case 4 -> "IV";
+            case 5 -> "V";
+            case 6 -> "VI";
+            case 7 -> "VII";
+            case 8 -> "VIII";
+            case 9 -> "IX";
+            case 10 -> "X";
+            default -> String.valueOf(number);
         };
-
-        if (number >= 1 &&
-                number <= values.length) {
-
-            return values[number - 1];
-        }
-
-        return String.valueOf(number);
     }
 }
