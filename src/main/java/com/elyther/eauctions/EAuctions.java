@@ -8,14 +8,17 @@ import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.io.IOException;
 
 public class EAuctions extends JavaPlugin {
 
     private Economy economy;
+
     private AuctionManager auctionManager;
     private AuctionGUI auctionGUI;
     private AuctionSearch auctionSearch;
+
+    private FavoriteManager favoriteManager;
+    private FavoriteGUI favoriteGUI;
 
     private File langFile;
     private FileConfiguration lang;
@@ -25,15 +28,7 @@ public class EAuctions extends JavaPlugin {
 
         saveDefaultConfig();
 
-        // =====================================================
-        // LANGUAGE
-        // =====================================================
-
         setupLang();
-
-        // =====================================================
-        // VAULT
-        // =====================================================
 
         if (!setupEconomy()) {
 
@@ -56,12 +51,15 @@ public class EAuctions extends JavaPlugin {
                 "Vault economy hooked!"
         );
 
-        // =====================================================
-        // AUCTION MANAGER
-        // =====================================================
-
         auctionManager =
                 new AuctionManager(this);
+
+        // =====================================================
+        // FAVORİ MANAGER
+        // =====================================================
+
+        favoriteManager =
+                new FavoriteManager(this);
 
         // =====================================================
         // AUCTION GUI
@@ -74,6 +72,23 @@ public class EAuctions extends JavaPlugin {
                 .getPluginManager()
                 .registerEvents(
                         auctionGUI,
+                        this
+                );
+
+        // =====================================================
+        // FAVORİ GUI
+        // =====================================================
+
+        favoriteGUI =
+                new FavoriteGUI(
+                        this,
+                        favoriteManager
+                );
+
+        getServer()
+                .getPluginManager()
+                .registerEvents(
+                        favoriteGUI,
                         this
                 );
 
@@ -116,10 +131,6 @@ public class EAuctions extends JavaPlugin {
             );
         }
 
-        // =====================================================
-        // STARTUP
-        // =====================================================
-
         getLogger().info(
                 "================================"
         );
@@ -134,6 +145,10 @@ public class EAuctions extends JavaPlugin {
 
         getLogger().info(
                 "Auction GUI: Enabled"
+        );
+
+        getLogger().info(
+                "Favorite System: Enabled"
         );
 
         getLogger().info(
@@ -154,7 +169,7 @@ public class EAuctions extends JavaPlugin {
     }
 
     // =========================================================
-    // LANGUAGE FILE
+    // LANGUAGE
     // =========================================================
 
     private void setupLang() {
@@ -220,6 +235,10 @@ public class EAuctions extends JavaPlugin {
             auctionManager.save();
         }
 
+        if (favoriteManager != null) {
+            favoriteManager.save();
+        }
+
         getLogger().info(
                 "EAuctions disabled!"
         );
@@ -275,6 +294,14 @@ public class EAuctions extends JavaPlugin {
         return auctionSearch;
     }
 
+    public FavoriteManager getFavoriteManager() {
+        return favoriteManager;
+    }
+
+    public FavoriteGUI getFavoriteGUI() {
+        return favoriteGUI;
+    }
+
     // =========================================================
     // COLOR
     // =========================================================
@@ -297,7 +324,7 @@ public class EAuctions extends JavaPlugin {
     }
 
     // =========================================================
-    // HEX COLORS
+    // HEX
     // =========================================================
 
     private String translateHexColors(
