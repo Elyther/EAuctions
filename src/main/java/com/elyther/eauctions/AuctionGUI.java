@@ -3,6 +3,7 @@ package com.elyther.eauctions;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -13,8 +14,10 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class AuctionGUI implements Listener {
@@ -29,6 +32,9 @@ public class AuctionGUI implements Listener {
     private final Map<UUID, Boolean> purchaseConfirmation = new HashMap<>();
     private final Map<UUID, Integer> pendingPurchases = new HashMap<>();
     private final Map<UUID, AuctionCategory> categories = new HashMap<>();
+
+    // Prevents rapid/double purchases
+    private final Set<UUID> purchaseLocks = new HashSet<>();
 
     public enum AuctionCategory {
         ALL,
@@ -53,6 +59,7 @@ public class AuctionGUI implements Listener {
     // =========================================================
 
     public void open(Player player) {
+
         UUID uuid = player.getUniqueId();
 
         pages.put(uuid, 0);
@@ -68,6 +75,7 @@ public class AuctionGUI implements Listener {
     // =========================================================
 
     public void openSearch(Player player, String search) {
+
         pages.put(player.getUniqueId(), 0);
 
         openGUI(
@@ -162,13 +170,13 @@ public class AuctionGUI implements Listener {
                 );
 
                 lore.add(
-        color(
-                "&a$" +
-                        plugin.formatMoney(
-                                auction.getPrice()
+                        color(
+                                "&a$" +
+                                        plugin.formatMoney(
+                                                auction.getPrice()
+                                        )
                         )
-        )
-);
+                );
 
                 lore.add("");
 
@@ -362,21 +370,22 @@ public class AuctionGUI implements Listener {
                 )
         );
 
-         // =====================================================
-         // FAVORİLER - SLOT 52
-         // =====================================================
+        // =====================================================
+        // FAVORITES - SLOT 52
+        // =====================================================
 
-          inventory.setItem(
-                  52,
-                  createItem(
-                          Material.NETHER_STAR,
-                "&e⭐ Favoriler",
-                "",
-                "&7Favori itemlerinizi yönetin.",
-                "",
-                "&eTıklamak için basın."
-             )
-       );
+        inventory.setItem(
+                52,
+                createItem(
+                        Material.NETHER_STAR,
+                        "&e⭐ Favoriler",
+                        "",
+                        "&7Favori itemlerinizi yönetin.",
+                        "",
+                        "&eTıklamak için basın."
+                )
+        );
+
         // =====================================================
         // NEXT - SLOT 53
         // =====================================================
@@ -866,6 +875,20 @@ public class AuctionGUI implements Listener {
     }
 
     // =========================================================
+    // CLICK SOUND
+    // =========================================================
+
+    private void playClickSound(Player player) {
+
+        player.playSound(
+                player.getLocation(),
+                Sound.UI_BUTTON_CLICK,
+                1.0f,
+                1.0f
+        );
+    }
+
+    // =========================================================
     // CLICK
     // =========================================================
 
@@ -903,6 +926,8 @@ public class AuctionGUI implements Listener {
                             .getSize()) {
                 return;
             }
+
+            playClickSound(player);
 
             switch (event.getRawSlot()) {
 
@@ -984,9 +1009,7 @@ public class AuctionGUI implements Listener {
                     return;
 
                 case 26:
-                    open(
-                            player
-                    );
+                    open(player);
                     return;
 
                 default:
@@ -1013,6 +1036,8 @@ public class AuctionGUI implements Listener {
                             .getSize()) {
                 return;
             }
+
+            playClickSound(player);
 
             UUID uuid =
                     player.getUniqueId();
@@ -1091,6 +1116,9 @@ public class AuctionGUI implements Listener {
                         .getSize()) {
             return;
         }
+
+        // Play click sound for every top GUI click
+        playClickSound(player);
 
         UUID uuid =
                 player.getUniqueId();
@@ -1215,26 +1243,20 @@ public class AuctionGUI implements Listener {
         }
 
         // =====================================================
-// FAVORİLER
-// =====================================================
+        // FAVORITES
+        // =====================================================
 
-if (slot == 52) {
+        if (slot == 52) {
 
-    if (plugin.getFavoriteGUI() != null) {
+            if (plugin.getFavoriteGUI() != null) {
 
-        player.playSound(
-                player.getLocation(),
-                org.bukkit.Sound.UI_BUTTON_CLICK,
-                1f,
-                1f
-        );
+                plugin.getFavoriteGUI()
+                        .openFavorites(player);
+            }
 
-        plugin.getFavoriteGUI()
-                .openFavorites(player);
-    }
+            return;
+        }
 
-    return;
-}
         // =====================================================
         // NEXT
         // =====================================================
@@ -1569,6 +1591,17 @@ if (slot == 52) {
             Auction auction
     ) {
 
+        UUID uuid =
+                buyer.getUniqueId();
+
+        // =====================================================
+        // DOUBLE-CLICK PROTECTION
+        // =====================================================
+
+        if (!purchaseLocks.add(uuid)) {
+            return;
+        }
+
         Auction current =
                 plugin.getAuctionManager()
                         .getAuction(
@@ -1576,6 +1609,8 @@ if (slot == 52) {
                         );
 
         if (current == null) {
+
+            purchaseLocks.remove(uuid);
 
             buyer.sendMessage(
                     prefix() +
@@ -1590,8 +1625,10 @@ if (slot == 52) {
 
         if (current.getSeller()
                 .equals(
-                        buyer.getUniqueId()
+                        uuid
                 )) {
+
+            purchaseLocks.remove(uuid);
 
             buyer.sendMessage(
                     prefix() +
@@ -1612,6 +1649,8 @@ if (slot == 52) {
                         price
                 )) {
 
+            purchaseLocks.remove(uuid);
+
             buyer.sendMessage(
                     prefix() +
                             lang(
@@ -1626,6 +1665,8 @@ if (slot == 52) {
                 buyer,
                 current.getItem()
         )) {
+
+            purchaseLocks.remove(uuid);
 
             buyer.sendMessage(
                     prefix() +
@@ -1649,6 +1690,8 @@ if (slot == 52) {
                 )
                 .transactionSuccess()) {
 
+            purchaseLocks.remove(uuid);
+
             buyer.sendMessage(
                     prefix() +
                             lang(
@@ -1671,6 +1714,8 @@ if (slot == 52) {
                             buyer,
                             price
                     );
+
+            purchaseLocks.remove(uuid);
 
             buyer.sendMessage(
                     prefix() +
@@ -1702,6 +1747,8 @@ if (slot == 52) {
                             buyer,
                             price
                     );
+
+            purchaseLocks.remove(uuid);
 
             buyer.sendMessage(
                     prefix() +
@@ -1760,6 +1807,14 @@ if (slot == 52) {
         }
 
         refresh(buyer);
+
+        // Keep the lock for 10 ticks (~0.5 seconds)
+        // so rapid double-clicks cannot trigger another purchase.
+        Bukkit.getScheduler().runTaskLater(
+                plugin,
+                () -> purchaseLocks.remove(uuid),
+                10L
+        );
     }
 
     // =========================================================
@@ -1838,7 +1893,9 @@ if (slot == 52) {
                             );
         }
 
+        // =====================================================
         // MY AUCTIONS
+        // =====================================================
 
         if (onlyMine) {
 
@@ -1858,7 +1915,9 @@ if (slot == 52) {
             auctions = mine;
         }
 
+        // =====================================================
         // CATEGORY
+        // =====================================================
 
         if (category != AuctionCategory.ALL) {
 
