@@ -1,6 +1,5 @@
 package com.elyther.eauctions;
 
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 
@@ -16,7 +15,8 @@ public class FavoriteManager {
     private final File file;
     private final YamlConfiguration config;
 
-    private static final int MAX_FAVORITES = 9;
+    // 9 yox, 45 favorit slotu
+    private static final int MAX_FAVORITES = 45;
 
     public FavoriteManager(EAuctions plugin) {
         this.plugin = plugin;
@@ -67,6 +67,7 @@ public class FavoriteManager {
         if (player == null ||
                 slot < 0 ||
                 slot >= MAX_FAVORITES) {
+
             return;
         }
 
@@ -100,6 +101,7 @@ public class FavoriteManager {
         if (player == null ||
                 slot < 0 ||
                 slot >= MAX_FAVORITES) {
+
             return;
         }
 
@@ -155,7 +157,6 @@ public class FavoriteManager {
     }
 
     public void reload() {
-
-        // favorites.yml plugin restartında otomatik okunur.
+        // favorites.yml restart zamanı avtomatik oxunur.
     }
 }
