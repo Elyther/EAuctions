@@ -110,12 +110,10 @@ public class FavoriteGUI implements Listener {
      * =========================================================
      * CONSTRUCTOR
      *
-     * ÖNEMLİ:
+     * ÖNƏMLİ:
      * Burada registerEvents YOXDUR.
      *
      * EAuctions.java artıq FavoriteGUI-ni register edir.
-     * Əvvəl burada da register olduğu üçün kliklər 2 dəfə
-     * işləyirdi.
      * =========================================================
      */
 
@@ -123,7 +121,6 @@ public class FavoriteGUI implements Listener {
             EAuctions plugin,
             FavoriteManager favoriteManager
     ) {
-
         this.plugin = plugin;
         this.favoriteManager = favoriteManager;
     }
@@ -195,7 +192,6 @@ public class FavoriteGUI implements Listener {
          * 0 - 44
          *
          * Hər slot öz favoritinə aiddir.
-         * Plugin avtomatik qarışdırmır.
          */
         for (int i = 0;
              i < FAVORITE_SLOTS.length;
@@ -513,17 +509,10 @@ public class FavoriteGUI implements Listener {
             return false;
         }
 
-        /*
-         * Favoride büyü yoxdursa,
-         * eyni materialdakı bütün ilanlar uyğundur.
-         */
         if (favorite.getEnchantments().isEmpty()) {
             return true;
         }
 
-        /*
-         * Büyü varsa minimum level kontrol edilir.
-         */
         for (Map.Entry<Enchantment, Integer> entry :
                 favorite.getEnchantments()
                         .entrySet()) {
@@ -559,15 +548,6 @@ public class FavoriteGUI implements Listener {
         UUID uuid =
                 player.getUniqueId();
 
-        /*
-         * =====================================================
-         * HARD LOCK
-         *
-         * Birinci klik satın alma başlatıbsa,
-         * ikinci klik işlem başlatmayacaq.
-         * =====================================================
-         */
-
         if (purchaseLocks.contains(uuid)) {
             return;
         }
@@ -575,10 +555,6 @@ public class FavoriteGUI implements Listener {
         purchaseLocks.add(uuid);
 
         try {
-
-            /*
-             * FAVORİYİ AL
-             */
 
             ItemStack favorite =
                     favoriteManager.getFavorite(
@@ -591,10 +567,6 @@ public class FavoriteGUI implements Listener {
 
                 return;
             }
-
-            /*
-             * EN UCUZ İLAN
-             */
 
             Auction cheapest =
                     getCheapestAuction(
@@ -619,10 +591,6 @@ public class FavoriteGUI implements Listener {
                 return;
             }
 
-            /*
-             * ECONOMY
-             */
-
             Economy economy =
                     plugin.getEconomy();
 
@@ -636,10 +604,6 @@ public class FavoriteGUI implements Listener {
 
                 return;
             }
-
-            /*
-             * İLANI TEKRAR KONTROL ET
-             */
 
             Auction current =
                     plugin.getAuctionManager()
@@ -658,10 +622,6 @@ public class FavoriteGUI implements Listener {
                 return;
             }
 
-            /*
-             * FAVORİ HALA UYUMLU MU?
-             */
-
             if (!matchesFavorite(
                     favorite,
                     current.getItem()
@@ -678,10 +638,6 @@ public class FavoriteGUI implements Listener {
 
             double price =
                     current.getPrice();
-
-            /*
-             * PARA
-             */
 
             if (economy.getBalance(player)
                     < price) {
@@ -701,10 +657,6 @@ public class FavoriteGUI implements Listener {
 
                 return;
             }
-
-            /*
-             * INVENTORY
-             */
 
             if (!hasInventorySpace(
                     player,
@@ -769,7 +721,11 @@ public class FavoriteGUI implements Listener {
                  */
 
                 plugin.getAuctionManager()
-                        .addAuction(current);
+                        .addAuction(
+                                current.getSeller(),
+                                current.getItem(),
+                                current.getPrice()
+                        );
 
                 player.sendMessage(
                         color(
@@ -813,7 +769,11 @@ public class FavoriteGUI implements Listener {
                  */
 
                 plugin.getAuctionManager()
-                        .addAuction(current);
+                        .addAuction(
+                                current.getSeller(),
+                                current.getItem(),
+                                current.getPrice()
+                        );
 
                 player.sendMessage(
                         color(
@@ -862,11 +822,11 @@ public class FavoriteGUI implements Listener {
                  */
 
                 plugin.getAuctionManager()
-        .addAuction(
-                current.getSeller(),
-                current.getItem(),
-                current.getPrice()
-        );
+                        .addAuction(
+                                current.getSeller(),
+                                current.getItem(),
+                                current.getPrice()
+                        );
 
                 player.sendMessage(
                         color(
@@ -903,10 +863,6 @@ public class FavoriteGUI implements Listener {
                     )
             );
 
-            /*
-             * GUI UPDATE
-             */
-
             Bukkit.getScheduler().runTask(
                     plugin,
                     () -> {
@@ -927,15 +883,6 @@ public class FavoriteGUI implements Listener {
             );
 
         } finally {
-
-            /*
-             * Lock-u dərhal açmırıq.
-             *
-             * 10 tick = 0.5 saniyə.
-             *
-             * Bu müddətdə ikinci klik satınalma
-             * başlada bilməz.
-             */
 
             Bukkit.getScheduler().runTaskLater(
                     plugin,
@@ -962,10 +909,6 @@ public class FavoriteGUI implements Listener {
 
         int amount =
                 item.getAmount();
-
-        /*
-         * Mövcud stacklərdə yer.
-         */
 
         for (ItemStack content :
                 player.getInventory()
@@ -1000,10 +943,6 @@ public class FavoriteGUI implements Listener {
                 }
             }
         }
-
-        /*
-         * Boş slotlar.
-         */
 
         for (ItemStack content :
                 player.getInventory()
@@ -1150,10 +1089,6 @@ public class FavoriteGUI implements Listener {
             );
         }
 
-        /*
-         * Geri
-         */
-
         inventory.setItem(
                 45,
                 item(
@@ -1162,10 +1097,6 @@ public class FavoriteGUI implements Listener {
                         "&7Favorilere dön."
                 )
         );
-
-        /*
-         * Önceki
-         */
 
         if (page > 0) {
 
@@ -1179,10 +1110,6 @@ public class FavoriteGUI implements Listener {
             );
         }
 
-        /*
-         * Kapat
-         */
-
         inventory.setItem(
                 49,
                 item(
@@ -1191,10 +1118,6 @@ public class FavoriteGUI implements Listener {
                         "&7Menüyü kapat."
                 )
         );
-
-        /*
-         * Sayfa
-         */
 
         inventory.setItem(
                 50,
@@ -1208,10 +1131,6 @@ public class FavoriteGUI implements Listener {
                                 + materials.size()
                 )
         );
-
-        /*
-         * Sonraki
-         */
 
         if (page < maxPage) {
 
@@ -1428,10 +1347,6 @@ public class FavoriteGUI implements Listener {
             );
         }
 
-        /*
-         * Geri
-         */
-
         inventory.setItem(
                 45,
                 item(
@@ -1440,10 +1355,6 @@ public class FavoriteGUI implements Listener {
                         "&7Eşya seçimine dön."
                 )
         );
-
-        /*
-         * Önceki
-         */
 
         if (page > 0) {
 
@@ -1457,10 +1368,6 @@ public class FavoriteGUI implements Listener {
             );
         }
 
-        /*
-         * KAYDET
-         */
-
         inventory.setItem(
                 49,
                 item(
@@ -1469,10 +1376,6 @@ public class FavoriteGUI implements Listener {
                         "&7Seçtiğin eşyayı favoriye ekle."
                 )
         );
-
-        /*
-         * Sonraki
-         */
 
         if (page < maxPage) {
 
@@ -1649,8 +1552,13 @@ public class FavoriteGUI implements Listener {
             );
         }
 
+        /*
+         * Level 10 slot 18 olduğu üçün
+         * Geri düyməsi artıq 26-cı slottadır.
+         */
+
         inventory.setItem(
-                18,
+                26,
                 item(
                         Material.ARROW,
                         "&e← Geri",
@@ -1699,10 +1607,6 @@ public class FavoriteGUI implements Listener {
 
             event.setCancelled(true);
 
-            /*
-             * GERİ
-             */
-
             if (slot == 45) {
 
                 player.playSound(
@@ -1723,10 +1627,6 @@ public class FavoriteGUI implements Listener {
                 return;
             }
 
-            /*
-             * KAPAT
-             */
-
             if (slot == 49) {
 
                 player.playSound(
@@ -1741,10 +1641,6 @@ public class FavoriteGUI implements Listener {
                 return;
             }
 
-            /*
-             * FAVORİ SLOTU
-             */
-
             for (int i = 0;
                  i < FAVORITE_SLOTS.length;
                  i++) {
@@ -1758,10 +1654,6 @@ public class FavoriteGUI implements Listener {
                                 player.getUniqueId(),
                                 i
                         );
-
-                /*
-                 * BOŞ FAVORİ
-                 */
 
                 if (favorite == null
                         || favorite.getType().isAir()) {
@@ -1781,10 +1673,6 @@ public class FavoriteGUI implements Listener {
                     return;
                 }
 
-                /*
-                 * SAĞ TIK = SİL
-                 */
-
                 if (event.isRightClick()) {
 
                     player.playSound(
@@ -1803,10 +1691,6 @@ public class FavoriteGUI implements Listener {
 
                     return;
                 }
-
-                /*
-                 * SOL TIK = SATIN AL
-                 */
 
                 if (event.isLeftClick()) {
 
@@ -2130,10 +2014,6 @@ public class FavoriteGUI implements Listener {
                 Enchantment enchantment =
                         enchantments.get(index);
 
-                /*
-                 * SAĞ TIK = BÜYÜYÜ KALDIR
-                 */
-
                 if (event.isRightClick()) {
 
                     pendingEnchantments
@@ -2159,10 +2039,6 @@ public class FavoriteGUI implements Listener {
                     return;
                 }
 
-                /*
-                 * SOL TIK = SEVİYE
-                 */
-
                 player.playSound(
                         player.getLocation(),
                         Sound.UI_BUTTON_CLICK,
@@ -2187,7 +2063,10 @@ public class FavoriteGUI implements Listener {
 
             event.setCancelled(true);
 
-            if (slot == 18) {
+            /*
+             * Geri artıq 26-cı slotdadır.
+             */
+            if (slot == 26) {
 
                 player.playSound(
                         player.getLocation(),
@@ -2207,6 +2086,10 @@ public class FavoriteGUI implements Listener {
                 return;
             }
 
+            /*
+             * Level 1-10:
+             * 9-18
+             */
             if (slot < 9 || slot > 18) {
                 return;
             }
