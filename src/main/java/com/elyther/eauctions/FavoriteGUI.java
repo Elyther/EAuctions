@@ -512,330 +512,355 @@ public class FavoriteGUI implements Listener {
        ========================================================= */
 
     private void buyCheapest(
-            Player player,
-            int favoriteSlot
-    ) {
+        Player player,
+        int favoriteSlot
+) {
 
-        UUID uuid =
-                player.getUniqueId();
+    UUID uuid = player.getUniqueId();
 
-        /*
-         * ÇİFT TIK KORUMASI
-         *
-         * Oyuncu zaten satın alma işlemi yapıyorsa
-         * ikinci tık tamamen yok sayılır.
-         */
-        if (!purchaseLocks.add(uuid)) {
+    // =====================================================
+    // HARD PURCHASE LOCK
+    // 1 klik = 1 satınalma
+    // =====================================================
+
+    if (purchaseLocks.contains(uuid)) {
+        return;
+    }
+
+    purchaseLocks.add(uuid);
+
+    try {
+
+        // =================================================
+        // FAVORİ
+        // =================================================
+
+        ItemStack favorite =
+                favoriteManager.getFavorite(
+                        uuid,
+                        favoriteSlot
+                );
+
+        if (favorite == null
+                || favorite.getType().isAir()) {
+
             return;
         }
 
-        /*
-         * İşlem başarısız olursa lock hemen kaldırılacak.
-         *
-         * Başarılı olursa lock 10 tick
-         * boyunca tutulacak.
-         */
-        boolean successfulPurchase = false;
+        // =================================================
+        // EN UCUZ İLAN
+        // =================================================
 
-        try {
+        Auction cheapest =
+                getCheapestAuction(favorite);
 
-            ItemStack favorite =
-                    favoriteManager.getFavorite(
-                            uuid,
-                            favoriteSlot
-                    );
+        if (cheapest == null) {
 
-            if (favorite == null
-                    || favorite.getType().isAir()) {
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cŞu anda satışta yok."
+                    )
+            );
 
-                return;
-            }
+            player.playSound(
+                    player.getLocation(),
+                    Sound.ENTITY_VILLAGER_NO,
+                    1.0f,
+                    1.0f
+            );
 
-            Auction cheapest =
-                    getCheapestAuction(favorite);
+            return;
+        }
 
-            if (cheapest == null) {
+        // =================================================
+        // ECONOMY
+        // =================================================
 
-                player.sendMessage(
-                        color(
-                                "&d&lEAuctions &8» &cŞu anda satışta yok."
-                        )
-                );
+        Economy economy =
+                plugin.getEconomy();
 
-                return;
-            }
+        if (economy == null) {
 
-            Economy economy =
-                    plugin.getEconomy();
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cEkonomi sistemi bulunamadı."
+                    )
+            );
 
-            if (economy == null) {
+            return;
+        }
 
-                player.sendMessage(
-                        color(
-                                "&d&lEAuctions &8» &cEkonomi sistemi bulunamadı."
-                        )
-                );
+        // =================================================
+        // CURRENT AUCTION'I YENİDEN AL
+        // =================================================
 
-                return;
-            }
+        Auction current =
+                plugin.getAuctionManager()
+                        .getAuction(
+                                cheapest.getId()
+                        );
 
-            double price =
-                    cheapest.getPrice();
+        if (current == null) {
 
-            /*
-             * PARA KONTROLÜ
-             */
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cBu ilan az önce satıldı."
+                    )
+            );
 
-            if (economy.getBalance(player)
-                    < price) {
+            return;
+        }
 
-                player.sendMessage(
-                        color(
-                                "&d&lEAuctions &8» &cYeterli paran yok."
-                        )
-                );
+        // =================================================
+        // FAVORİ HALA UYUMLU MU?
+        // =================================================
 
-                player.playSound(
-                        player.getLocation(),
-                        Sound.ENTITY_VILLAGER_NO,
-                        1.0f,
-                        1.0f
-                );
+        if (!matchesFavorite(
+                favorite,
+                current.getItem()
+        )) {
 
-                return;
-            }
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cBu ilan favorinize artık uyğun deyil."
+                    )
+            );
 
-            /*
-             * ENVANTER KONTROLÜ
-             */
+            return;
+        }
 
-            if (!hasInventorySpace(
-                    player,
-                    cheapest.getItem()
-            )) {
+        double price =
+                current.getPrice();
 
-                player.sendMessage(
-                        color(
-                                "&d&lEAuctions &8» &cEnvanterinde yeterli alan yok."
-                        )
-                );
+        // =================================================
+        // PARA
+        // =================================================
 
-                player.playSound(
-                        player.getLocation(),
-                        Sound.ENTITY_VILLAGER_NO,
-                        1.0f,
-                        1.0f
-                );
+        if (economy.getBalance(player) < price) {
 
-                return;
-            }
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cYeterli paran yok."
+                    )
+            );
 
-            /*
-             * İLAN HÂLÂ VAR MI?
-             */
+            player.playSound(
+                    player.getLocation(),
+                    Sound.ENTITY_VILLAGER_NO,
+                    1.0f,
+                    1.0f
+            );
 
-            Auction current =
-                    plugin.getAuctionManager()
-                            .getAuction(
-                                    cheapest.getId()
-                            );
+            return;
+        }
 
-            if (current == null) {
+        // =================================================
+        // INVENTORY
+        // =================================================
 
-                player.sendMessage(
-                        color(
-                                "&d&lEAuctions &8» &cBu ilan az önce satıldı."
-                        )
-                );
+        if (!hasInventorySpace(
+                player,
+                current.getItem()
+        )) {
 
-                updateFavoritePrices(player);
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cEnvanterinde yeterli alan yok."
+                    )
+            );
 
-                return;
-            }
+            player.playSound(
+                    player.getLocation(),
+                    Sound.ENTITY_VILLAGER_NO,
+                    1.0f,
+                    1.0f
+            );
 
-            /*
-             * GÜNCEL FİYAT
-             */
+            return;
+        }
 
-            price =
-                    current.getPrice();
+        // =================================================
+        // İLANI ƏVVƏL SİL
+        // =================================================
 
-            if (economy.getBalance(player)
-                    < price) {
+        boolean removed =
+                plugin.getAuctionManager()
+                        .removeAuction(
+                                current.getId()
+                        );
 
-                player.sendMessage(
-                        color(
-                                "&d&lEAuctions &8» &cYeterli paran yok."
-                        )
-                );
+        if (!removed) {
 
-                return;
-            }
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cBu ilan az önce satıldı."
+                    )
+            );
 
-            /*
-             * PARAYI ÇEK
-             */
+            return;
+        }
 
-            var withdraw =
-                    economy.withdrawPlayer(
-                            player,
-                            price
-                    );
+        // =================================================
+        // PULU ÇƏK
+        // =================================================
 
-            if (!withdraw.transactionSuccess()) {
-
-                player.sendMessage(
-                        color(
-                                "&d&lEAuctions &8» &cSatın alma işlemi başarısız."
-                        )
-                );
-
-                return;
-            }
-
-            /*
-             * İLANI KALDIR
-             */
-
-            boolean removed =
-                    plugin.getAuctionManager()
-                            .removeAuction(
-                                    current.getId()
-                            );
-
-            if (!removed) {
-
-                /*
-                 * Başka oyuncu ilanı aldıysa
-                 * parayı geri ver.
-                 */
-
-                economy.depositPlayer(
+        var withdraw =
+                economy.withdrawPlayer(
                         player,
                         price
                 );
 
-                player.sendMessage(
-                        color(
-                                "&d&lEAuctions &8» &cBu ilan az önce satıldı."
-                        )
+        if (!withdraw.transactionSuccess()) {
+
+            // İlanı geri qaytarmağa çalış
+            plugin.getAuctionManager()
+                    .addAuction(current);
+
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cÖdəniş uğursuz oldu."
+                    )
+            );
+
+            return;
+        }
+
+        // =================================================
+        // SATIŞ
+        // =================================================
+
+        var seller =
+                Bukkit.getOfflinePlayer(
+                        current.getSeller()
                 );
 
-                updateFavoritePrices(player);
-
-                return;
-            }
-
-            /*
-             * SATICIYA PARA
-             */
-
-            Player seller =
-                    Bukkit.getPlayer(
-                            current.getSeller()
-                    );
-
-            if (seller != null
-                    && seller.isOnline()) {
-
+        var deposit =
                 economy.depositPlayer(
                         seller,
                         price
                 );
 
-            } else {
+        if (!deposit.transactionSuccess()) {
 
-                economy.depositPlayer(
-                        Bukkit.getOfflinePlayer(
-                                current.getSeller()
-                        ),
-                        price
-                );
-            }
-
-            /*
-             * EŞYAYI VER
-             */
-
-            player.getInventory().addItem(
-                    current.getItem().clone()
+            // Buyer refund
+            economy.depositPlayer(
+                    player,
+                    price
             );
 
-            /*
-             * SATIN ALMA SESİ
-             */
-
-            player.playSound(
-                    player.getLocation(),
-                    Sound.ENTITY_PLAYER_LEVELUP,
-                    1.0f,
-                    1.2f
-            );
-
-            /*
-             * MESAJ
-             */
+            // Auction geri
+            plugin.getAuctionManager()
+                    .addAuction(current);
 
             player.sendMessage(
                     color(
-                            "&d&lEAuctions &8» &aSatın aldın! &f$"
-                                    + formatMoney(price)
+                            "&d&lEAuctions &8» &cSatıcıya ödəniş edilə bilmədi."
                     )
             );
 
-            /*
-             * BAŞARILI SATIN ALMA
-             *
-             * Lock aşağıda 10 tick sonra kaldırılacak.
-             */
-            successfulPurchase = true;
-
-            /*
-             * GUI FİYATLARINI YENİLE
-             */
-
-            Bukkit.getScheduler().runTask(
-                    plugin,
-                    () -> {
-
-                        if (!player.isOnline()) {
-                            return;
-                        }
-
-                        if (isFavoritesInventory(
-                                player.getOpenInventory()
-                        )) {
-
-                            updateFavoritePrices(player);
-                        }
-                    }
-            );
-
-            /*
-             * ÇİFT TIK KORUMASINI 0.5 SANİYE TUT
-             *
-             * 20 tick = 1 saniye
-             * 10 tick = 0.5 saniye
-             */
-            Bukkit.getScheduler().runTaskLater(
-                    plugin,
-                    () -> purchaseLocks.remove(uuid),
-                    10L
-            );
-
-        } finally {
-
-            /*
-             * Başarısız işlemde lock hemen kaldırılır.
-             *
-             * Başarılı işlemde ise yukarıdaki
-             * runTaskLater() kaldıracaq.
-             */
-            if (!successfulPurchase) {
-                purchaseLocks.remove(uuid);
-            }
+            return;
         }
+
+        // =================================================
+        // ITEM VER
+        // =================================================
+
+        HashMap<Integer, ItemStack> leftover =
+                player.getInventory()
+                        .addItem(
+                                current.getItem().clone()
+                        );
+
+        if (!leftover.isEmpty()) {
+
+            // Buyer refund
+            economy.depositPlayer(
+                    player,
+                    price
+            );
+
+            // Seller refund
+            economy.withdrawPlayer(
+                    seller,
+                    price
+            );
+
+            // Auction geri
+            plugin.getAuctionManager()
+                    .addAuction(current);
+
+            player.sendMessage(
+                    color(
+                            "&d&lEAuctions &8» &cEşya inventara əlavə edilə bilmədi."
+                    )
+            );
+
+            return;
+        }
+
+        // =================================================
+        // SUCCESS
+        // =================================================
+
+        player.playSound(
+                player.getLocation(),
+                Sound.ENTITY_PLAYER_LEVELUP,
+                1.0f,
+                1.2f
+        );
+
+        player.sendMessage(
+                color(
+                        "&d&lEAuctions &8» &a✔ Satın alındı!"
+                )
+        );
+
+        player.sendMessage(
+                color(
+                        "&7Qiymət: &a$"
+                                + formatMoney(price)
+                )
+        );
+
+        // =================================================
+        // GUI UPDATE
+        // =================================================
+
+        Bukkit.getScheduler().runTask(
+                plugin,
+                () -> {
+
+                    if (!player.isOnline()) {
+                        return;
+                    }
+
+                    if (isFavoritesInventory(
+                            player.getOpenInventory()
+                    )) {
+
+                        updateFavoritePrices(player);
+                    }
+                }
+        );
+
+    } finally {
+
+        /*
+         * Lock-u dərhal açmırıq.
+         *
+         * 10 tick = 0.5 saniyə.
+         *
+         * Beləliklə çox sürətli double-click,
+         * triple-click və s. ikinci alış yarada bilməz.
+         */
+
+        Bukkit.getScheduler().runTaskLater(
+                plugin,
+                () -> purchaseLocks.remove(uuid),
+                10L
+        );
     }
+}
 
     /* =========================================================
        ENVANTER KONTROLÜ
