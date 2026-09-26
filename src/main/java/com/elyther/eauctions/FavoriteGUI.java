@@ -862,7 +862,11 @@ public class FavoriteGUI implements Listener {
                  */
 
                 plugin.getAuctionManager()
-                        .addAuction(current);
+        .addAuction(
+                current.getSeller(),
+                current.getItem(),
+                current.getPrice()
+        );
 
                 player.sendMessage(
                         color(
